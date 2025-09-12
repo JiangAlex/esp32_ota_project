@@ -1,0 +1,95 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+*.bak
+*.swp
+*.tmp
+*.env
+.env/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# === Arduino / ESP32 ===
+*.elf
+*.hex
+*.bin
+*.map
+*.d
+*.o
+*.a
+*.eep
+*.lst
+*.srec
+*.gz
+*.firmware.*
+*.ino.*
+*.cpp.*
+*.core
+*.mcu
+*.arduino.json
+*.arduino.ide.json
+
+# PlatformIO
+.pio/
+.vscode/
+*.pioenvs/
+*.piolibdeps/
+*.clang_complete
+*.gcc-flags.json
+
+# === VSCode / IDE ===
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# === Windows 系統檔案 ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# === Git / Repo ===
+*.orig
+*.rej
+*.patch
+*.diff
+
+# === 壓縮與備份檔 ===
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.bak
+*.old
+*.backup
+
+# === 日誌與測試輸出 ===
+*.log
+*.out
+*.test
+*.coverage
+coverage.xml
+htmlcov/
+
+# === 其他你可能用到的工具 ===
+.DS_Store
+*.DS_Store
+*.class
+*.jar
+*.iml
+*.project
+*.classpath
