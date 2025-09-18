@@ -174,6 +174,7 @@ def on_message(client, userdata, msg):
             logging.info(f"Command response from {device_id}: {payload}")
             print(f"Command response from {device_id}: {payload}")
         print("TOPIC_COMMAND_BASE END")
+
 '''
     # OTA 觸發
     if topic.startswith(TOPIC_TRIGGER_BASE):
