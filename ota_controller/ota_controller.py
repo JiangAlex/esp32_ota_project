@@ -8,14 +8,16 @@ from datetime import datetime
 from ota_db import init_db, log_update
 
 # ====== 設定 ======
-MQTT_BROKER = "192.168.2.223"
+#MQTT_BROKER = "192.168.2.223"
+MQTT_BROKER = "127.0.0.1"
+
 MQTT_PORT   = 1883
 TOPIC_TRIGGER_BASE = "esp32/update"
 TOPIC_PAYLOAD      = "esp32/update"
 TOPIC_COMMAND_BASE = "esp32/command"
 
 NEW_VERSION = "1.2.0"
-FW_URL      = "http://example.com/firmware.bin"
+FW_URL      = "http://example.com/"
 FW_IMAGE    = "firmware_v1.2.0.bin"
 
 # ====== 資料庫模式: "sqlite" 或 "mysql" ======
@@ -121,14 +123,54 @@ def send_command(client, device_id, command):
 # ====== MQTT Callback ======
 def on_connect(client, userdata, flags, reason_code, properties):
     logging.info(f"Connected to MQTT broker, reason_code={reason_code}")
-    client.subscribe(f"{TOPIC_TRIGGER_BASE}/+")
-    client.subscribe(f"{TOPIC_COMMAND_BASE}/+")
+    client.subscribe(f"{TOPIC_TRIGGER_BASE}/#")
+    client.subscribe(f"{TOPIC_COMMAND_BASE}/#")
 
 def on_message(client, userdata, msg):
     topic = msg.topic
     payload = msg.payload.decode()
     logging.info(f"Received on {topic}: {payload}")
+    print(f"Received on {topic}: {payload}")
 
+    try:
+        data = json.loads(payload)
+        product = data.get("product", "unknown")
+        device_id = data.get("device", "unknown")
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON payload: {e}")
+        print(f"Invalid JSON payload: {e}")
+        return
+
+    # OTA 觸發邏輯
+    if topic.startswith(TOPIC_TRIGGER_BASE):
+        if product and device_id:
+            logging.info(f"Trigger received for {device_id} with product {product}")
+            print(f"Trigger received for {device_id} with product {product}")
+            publish_ota_payload(client, target=device_id)
+
+            # 查詢 SQLite 資料庫中的產品資訊
+            try:
+                conn = sqlite3.connect("ota_history.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM products WHERE product_name = ?", (product,))
+                result = cursor.fetchall()
+                conn.close()
+
+                if result:
+                    for row in result:
+                        logging.info(f"Product Info for {product}: {row}")
+                        print(f"Product Info for {product}: {row}")
+                else:
+                    logging.warning(f"No product info found for: {product}")
+                    print(f"No product info found for: {product}")
+            except sqlite3.Error as e:
+                logging.error(f"SQLite error: {e}")
+                print(f"SQLite error: {e}")
+        else:
+            logging.warning("Missing 'product' or 'device' in payload")
+            print_item("Missing 'product' or 'device' in payload")
+
+'''
     # OTA 觸發
     if topic.startswith(TOPIC_TRIGGER_BASE):
         device_id = topic.split("/")[-1]
@@ -143,7 +185,7 @@ def on_message(client, userdata, msg):
     elif topic.startswith(TOPIC_COMMAND_BASE):
         device_id = topic.split("/")[-1]
         logging.info(f"Command response from {device_id}: {payload}")
-
+'''
 # ====== 主程式 ======
 if __name__ == "__main__":
     init_db()
@@ -157,7 +199,8 @@ if __name__ == "__main__":
     client.on_message = on_message
 
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
-
+    client.loop_forever()
+'''
     # 範例：啟動後 5 秒查詢 esp32-01 韌體版本與狀態
     import threading
     def send_test_commands():
@@ -166,3 +209,4 @@ if __name__ == "__main__":
     threading.Timer(5, send_test_commands).start()
 
     client.loop_forever()
+'''
