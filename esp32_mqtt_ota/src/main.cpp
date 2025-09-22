@@ -31,6 +31,10 @@ State currentState = WIFI_CONNECT;
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+// ====== 0922 新增: 重試計數 ======
+int retryCount = 0;
+const int MAX_RETRY = 5;
+
 // ====== 函數宣告 ======
 bool checkInternet();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
@@ -57,6 +61,7 @@ void loop() {
       Serial.println("Connecting WiFi...");
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       if (WiFi.waitForConnectResult() == WL_CONNECTED) {
+        retryCount = 0; // 成功，重置重試計數 0922
         currentState = NET_CHECK;
       } else {
         currentState = RETRY;
@@ -66,6 +71,7 @@ void loop() {
     case NET_CHECK:
       Serial.println("Checking Internet...");
       if (checkInternet()) {
+        retryCount = 0; // 成功，重置重試計數 0922
         currentState = MQTT_SUB;
       } else {
         currentState = RETRY;
@@ -75,6 +81,7 @@ void loop() {
     case MQTT_SUB:
       Serial.println("Connecting MQTT...");
       if (client.connect(DEVICE_ID)) {
+        retryCount = 0; // 成功，重置重試計數 0922
         client.subscribe(MQTT_TOPIC_ALL.c_str());
         client.subscribe(MQTT_TOPIC_DEVICE.c_str());
         Serial.println("Subscribed to MQTT topics");
@@ -112,10 +119,18 @@ void loop() {
       ESP.restart();
       break;
 
-    case RETRY:
-      Serial.println("Retry in 5s...");
-      delay(5000);
-      currentState = WIFI_CONNECT;
+    case RETRY:  //0922 修改
+      retryCount++;
+      Serial.printf("Retry #%d in 5s...\n", retryCount);
+      if (retryCount >= MAX_RETRY) {
+        // 超過最大重試次數，改為進入 RUNNING（WAIT_OTA）繼續執行
+        Serial.println("Max retries reached. Entering RUNNING (WAIT_OTA) state.");
+        retryCount = 0;
+        currentState = WAIT_OTA;
+      } else {
+        delay(5000);
+        currentState = WIFI_CONNECT;
+      }
       break;
   }
 }
