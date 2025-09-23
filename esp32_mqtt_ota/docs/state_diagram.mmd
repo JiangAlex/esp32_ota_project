@@ -13,9 +13,8 @@ stateDiagram-v2
     WAIT_OTA --> WAIT_OTA: client.loop()\nperiodic publish (update request)
     WAIT_OTA --> PARSE_JSON: MQTT message received
 
-    RUNNING --> RUNNING: client.loop()
-
     PARSE_JSON --> OTA_UPDATE: payload contains newer version
+    PARSE_JSON --> WAIT_OTA: payload fail
     PARSE_JSON --> RUNNING: already latest
 
     OTA_UPDATE --> REBOOT: OTA success
@@ -23,5 +22,5 @@ stateDiagram-v2
 
     RETRY --> WIFI_CONNECT: Retry < 5\ndelay 5s
     RETRY --> RUNNING: Retry >= 5\nenter RUNNING
-
+    RUNNING --> RUNNING: loop()
     REBOOT --> [*]
