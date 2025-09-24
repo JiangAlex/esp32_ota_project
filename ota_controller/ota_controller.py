@@ -8,6 +8,7 @@ from datetime import datetime
 from ota_db import init_db, log_update
 
 # ====== 設定 ======
+#MQTT_BROKER = "192.168.2.223"
 MQTT_BROKER = "127.0.0.1"
 MQTT_PORT   = 1883
 TOPIC_TRIGGER_BASE = "esp32/update"
@@ -139,7 +140,8 @@ def on_message(client, userdata, msg):
         logging.error(f"Invalid JSON payload: {e}")
         print(f"Invalid JSON payload: {e}")
         return
-# OTA 觸發邏輯
+
+    # OTA 觸發邏輯
     if topic.startswith(TOPIC_TRIGGER_BASE):
         if product != "unknown" and device_id != "unknown":
             logging.info(f"Trigger received for {device_id} with product {product}")
@@ -213,4 +215,6 @@ if __name__ == "__main__":
         send_command(client, "esp32-01", "get_version")
         send_command(client, "esp32-01", "get_status")
     threading.Timer(5, send_test_commands).start()
+
+    client.loop_forever()
 '''
