@@ -1,187 +1,55 @@
+/*
+  Minimal state-machine implementation driven by docs/state_diagram.mmd
+  (state-loop moved into mqtt_client module)
+
+main.cpp 現在只留 setup() 與 loop()，loop() 中包含 RUNNING 狀態的常態處理（維持 mqtt 連線、mqtt_loop()、以及週期 publish）。
+mqtt_client.cpp 含完整的狀態機與 WiFi/MQTT/OTA 邏輯（已移除 main 中的輔助函式）。
+若需調整 WiFi/MQTT/OTA 的參數，請修改 setup() 內呼叫 mqtt_module_setup(...) 的字串參數。
+*/
+
 #include <Arduino.h>
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <PubSubClient.h>
-#include <ArduinoOTA.h>
-#include <Update.h>
-#include <ArduinoJson.h>
+#include "mqtt_client.h"
 
-// ====== WiFi/MQTT Config ======
-const char* WIFI_SSID     = "AlexHome2G";
-const char* WIFI_PASS     = "26743819";
-const char* MQTT_BROKER   = "192.168.2.223";
-const int   MQTT_PORT     = 1883;
-const char* DEVICE_ID     = "esp32-01";
-String MQTT_TOPIC_ALL     = "esp32/update";
-String MQTT_TOPIC_DEVICE  = "esp32/update/" + String(DEVICE_ID);
-
-// ====== 狀態機 ======
-enum State {
-  WIFI_CONNECT,
-  NET_CHECK,
-  MQTT_SUB,
-  WAIT_OTA,
-  PARSE_JSON,
-  OTA_UPDATE,
-  REBOOT,
-  RETRY
-};
-
-State currentState = WIFI_CONNECT;
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-// ====== 函數宣告 ======
-bool checkInternet();
-void mqttCallback(char* topic, byte* payload, unsigned int length);
-void runOtaUpdate(String fwUrl, String newVersion);
-
-// ====== Global ======
-unsigned long lastUpdateRequest = 0;
-const unsigned long updateInterval = 60000; // 60 秒
-
-// ====== setup ======
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("ESP32 OTA FSM Start");
-  client.setServer(MQTT_BROKER, MQTT_PORT);
-  client.setCallback(mqttCallback);
+  delay(100);
+
+  // 初始化 mqtt module (包含 WiFi/MQTT/OTA 等邏輯設定)
+  // 把你的參數放在這裡 — 保持 main 簡潔
+  mqtt_module_setup(
+    "your_ssid",
+    "your_password",
+    "mqtt.example.com",
+    1883,
+    "device/ota/cmd",
+    "device/ota/request",
+    "esp32_ota_client",
+    "http://updates.example.com/firmware.bin",
+    "1.0.0"
+  );
 }
 
-// ====== loop ======
 void loop() {
-  switch (currentState) {
+  // 讓 mqtt module 進行一次狀態機的迭代（會處理 WiFi/網路檢查/MQTT 訂閱/OTA 等）
+  mqtt_state_loop_iteration();
 
-    case WIFI_CONNECT:
-      Serial.println("Connecting WiFi...");
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
-      if (WiFi.waitForConnectResult() == WL_CONNECTED) {
-        currentState = NET_CHECK;
-      } else {
-        currentState = RETRY;
-      }
-      break;
-
-    case NET_CHECK:
-      Serial.println("Checking Internet...");
-      if (checkInternet()) {
-        currentState = MQTT_SUB;
-      } else {
-        currentState = RETRY;
-      }
-      break;
-
-    case MQTT_SUB:
-      Serial.println("Connecting MQTT...");
-      if (client.connect(DEVICE_ID)) {
-        client.subscribe(MQTT_TOPIC_ALL.c_str());
-        client.subscribe(MQTT_TOPIC_DEVICE.c_str());
-        Serial.println("Subscribed to MQTT topics");
-        currentState = WAIT_OTA;
-        String triggerTopic = "esp32/update/" + String(DEVICE_ID);
-        client.publish(triggerTopic.c_str(), "update");
-        Serial.println("📤 Sent update request → " + triggerTopic);
-      } else {
-        currentState = RETRY;
-      }
-      break;
-// ====== 在 loop() 中 WAIT_OTA 狀態處理 ======
-    case WAIT_OTA:
-      client.loop();  // keep MQTT alive
-
-    // 定時主動要求更新
-    if (millis() - lastUpdateRequest > updateInterval) {
-      lastUpdateRequest = millis();
-      String triggerTopic = "esp32/update/" + String(DEVICE_ID);
-      client.publish(triggerTopic.c_str(), "update");
-      Serial.println("📤 Sent update request → " + triggerTopic);
-      
+  // 若狀態為 RUNNING，則由 main loop 處理常態運作（維持 MQTT loop / 週期 publish）
+  if (mqtt_get_state() == MS_RUNNING) {
+    mqtt_loop();
+    // 嘗試維持連線
+    //if (!mqtt_connected()) {
+    //  mqtt_connect_and_subscribe();
+    //  delay(200);
+    //} else {
+    //  mqtt_loop();
     }
-      break;
 
-    case PARSE_JSON:
-      // 由 mqttCallback 切換狀態
-      break;
-
-    case OTA_UPDATE:
-      // runOtaUpdate() 會負責，完成後切 REBOOT
-      break;
-
-    case REBOOT:
-      ESP.restart();
-      break;
-
-    case RETRY:
-      Serial.println("Retry in 5s...");
-      delay(5000);
-      currentState = WIFI_CONNECT;
-      break;
-  }
-}
-
-// ====== Function: 檢查外部網路 ======
-bool checkInternet() {
-  HTTPClient http;
-  http.begin("http://www.google.com.tw/");  // 測試用
-  int httpCode = http.GET();
-  http.end();
-  return (httpCode > 0 && httpCode < 400);
-}
-
-// ====== Function: MQTT callback ======
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String msg;
-  for (unsigned int i = 0; i < length; i++) {
-    msg += (char)payload[i];
-  }
-  Serial.printf("MQTT [%s] %s\n", topic, msg.c_str());
-
-  // 假設 payload: {"version":"1.1.0","url":"http://example.com/fw.bin"}
-  StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, msg);
-  if (error) {
-    Serial.println("JSON parse failed!");
-    return;
-  }
-
-  String newVer = doc["version"].as<String>();
-  String fwUrl  = doc["url"].as<String>();
-
-  // 假設當前版本用 "1.0.0"
-  if (newVer != "1.0.0") {
-    runOtaUpdate(fwUrl, newVer);
-  } else {
-    Serial.println("Already latest version");
-  }
-}
-
-// ====== Function: OTA 更新 ======
-void runOtaUpdate(String fwUrl, String newVersion) {
-  Serial.printf("Start OTA from %s\n", fwUrl.c_str());
-  WiFiClientSecure clientSecure;
-  clientSecure.setInsecure();
-
-  HTTPClient http;
-  http.begin(clientSecure, fwUrl);
-
-  int httpCode = http.GET();
-  if (httpCode == HTTP_CODE_OK) {
-    int len = http.getSize();
-    WiFiClient* stream = http.getStreamPtr();
-
-    if (Update.begin(len)) {
-      size_t written = Update.writeStream(*stream);
-      if (written == len) {
-        Serial.println("OTA Success!");
-        if (Update.end()) {
-          currentState = REBOOT;
-        }
-      }
+    // 週期性 publish 範例（每 60s）
+    static unsigned long lastPublish = 0;
+    const unsigned long PUBLISH_INTERVAL_MS = 60UL * 1000UL;
+    if (millis() - lastPublish >= PUBLISH_INTERVAL_MS) {
+      lastPublish = millis();
+      String payload = String("{\"id\":\"") + WiFi.macAddress() + String("\",\"version\":\"") + mqtt_get_current_version() + String("\"}");
+      mqtt_publish(mqtt_get_pub_topic(), payload.c_str(), payload.length());
     }
-  } else {
-    Serial.println("OTA Failed, HTTP Error");
-    currentState = RETRY;
   }
-  http.end();
-}

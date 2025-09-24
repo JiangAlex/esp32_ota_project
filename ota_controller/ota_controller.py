@@ -10,7 +10,10 @@ from ota_db import init_db, log_update
 # ====== 設定 ======
 #MQTT_BROKER = "192.168.2.223"
 MQTT_BROKER = "127.0.0.1"
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/master
 MQTT_PORT   = 1883
 TOPIC_TRIGGER_BASE = "esp32/update"
 TOPIC_PAYLOAD      = "esp32/update"
@@ -123,6 +126,11 @@ def send_command(client, device_id, command):
 # ====== MQTT Callback ======
 def on_connect(client, userdata, flags, reason_code, properties):
     logging.info(f"Connected to MQTT broker, reason_code={reason_code}")
+<<<<<<< HEAD
+=======
+    print(f"Connected to MQTT broker, reason_code={reason_code}")
+    # client.subscribe(f"{TOPIC_TRIGGER_BASE}/+")
+>>>>>>> origin/master
     client.subscribe(f"{TOPIC_TRIGGER_BASE}/#")
     client.subscribe(f"{TOPIC_COMMAND_BASE}/#")
 
@@ -131,6 +139,7 @@ def on_message(client, userdata, msg):
     payload = msg.payload.decode()
     logging.info(f"Received on {topic}: {payload}")
     print(f"Received on {topic}: {payload}")
+<<<<<<< HEAD
 
     try:
         data = json.loads(payload)
@@ -144,6 +153,20 @@ def on_message(client, userdata, msg):
     # OTA 觸發邏輯
     if topic.startswith(TOPIC_TRIGGER_BASE):
         if product and device_id:
+=======
+    try:
+        data = json.loads(payload)
+        product = data.get("product", "unknown")
+        device_id = data.get("device", "unknown")
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON payload: {e}")
+        print(f"Invalid JSON payload: {e}")
+        return
+
+    # OTA 觸發邏輯
+    if topic.startswith(TOPIC_TRIGGER_BASE):
+        if product != "unknown" and device_id != "unknown":
+>>>>>>> origin/master
             logging.info(f"Trigger received for {device_id} with product {product}")
             print(f"Trigger received for {device_id} with product {product}")
             publish_ota_payload(client, target=device_id)
@@ -168,7 +191,18 @@ def on_message(client, userdata, msg):
                 print(f"SQLite error: {e}")
         else:
             logging.warning("Missing 'product' or 'device' in payload")
+<<<<<<< HEAD
             print_item("Missing 'product' or 'device' in payload")
+=======
+            print("Missing 'product' or 'device' in payload")
+
+# ESP32 指令回覆
+    elif topic.startswith(TOPIC_COMMAND_BASE):
+        if device_id:
+            logging.info(f"Command response from {device_id}: {payload}")
+            print(f"Command response from {device_id}: {payload}")
+        print("TOPIC_COMMAND_BASE END")
+>>>>>>> origin/master
 
 '''
     # OTA 觸發
@@ -186,6 +220,10 @@ def on_message(client, userdata, msg):
         device_id = topic.split("/")[-1]
         logging.info(f"Command response from {device_id}: {payload}")
 '''
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
 # ====== 主程式 ======
 if __name__ == "__main__":
     init_db()

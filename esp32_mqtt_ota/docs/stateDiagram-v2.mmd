@@ -1,0 +1,27 @@
+stateDiagram-v2
+    [*] --> MS_WIFI_CONNECT
+
+    MS_WIFI_CONNECT --> MS_NET_CHECK: WiFi connected
+    MS_WIFI_CONNECT --> MS_RETRY: WiFi not connected / start retry
+
+    MS_NET_CHECK --> MS_MQTT_SUB: Internet OK
+    MS_NET_CHECK --> MS_RETRY: Internet fail
+
+    MS_MQTT_SUB --> MS_WAIT_OTA: MQTT connected & subscribed
+    MS_MQTT_SUB --> MS_RETRY: MQTT connect fail
+
+    MS_WAIT_OTA --> MS_RETRY: MQTT disconnected
+    MS_WAIT_OTA --> MS_PARSE_JSON: payload received
+    MS_WAIT_OTA --> MS_WAIT_OTA: periodic publish
+
+    MS_PARSE_JSON --> MS_OTA_UPDATE: payload newer (store pendingUrl)
+    MS_PARSE_JSON --> MS_WAIT_OTA: invalid / not newer
+
+    MS_OTA_UPDATE --> MS_RETRY: performOTA (then retry flow)
+
+    MS_RETRY --> MS_RUNNING: max retries reached
+    MS_RETRY --> MS_WIFI_CONNECT: retry timer expired (increment retryCount)
+
+    MS_REBOOT --> [*]: ESP.restart()
+
+    MS_RUNNING --> MS_RUNNING: normal operation (mqtt_loop + periodic publish)
