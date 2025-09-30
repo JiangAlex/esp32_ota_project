@@ -9,9 +9,11 @@ static WiFiClient s_wifiClient;
 static PubSubClient* s_mqttClient = nullptr;
 
 // config / state
-static const char* s_wifi_ssid = nullptr;
-static const char* s_wifi_pass = nullptr;
-static const char* s_mqtt_server = nullptr;
+//static const char* s_wifi_ssid = nullptr;
+//static const char* s_wifi_pass = nullptr;
+static const char* s_wifi_ssid = "ACC_TPE_WIFI_8F";
+static const char* s_wifi_pass = "87738500";
+static const char* s_mqtt_server = "192.168.131.55";
 static uint16_t s_mqtt_port = 1883;
 static const char* s_mqtt_client_id = nullptr;
 static const char* s_mqtt_sub_topic = nullptr;
