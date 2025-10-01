@@ -96,7 +96,7 @@ bool mqtt_connect_and_subscribe() {
 }
 
 void mqtt_loop() {
-    Serial.printf("mqtt_loop\n");
+    //Serial.printf("mqtt_loop\n");
     if (s_mqttClient) s_mqttClient->loop();
 }
 

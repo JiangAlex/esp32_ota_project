@@ -1,0 +1,101 @@
+graph TD
+    %% MQTT OTA State Machine
+    subgraph "MQTT OTA State Machine"
+        START([開始]) --> MS_WIFI_CONNECT[MS_WIFI_CONNECT<br/>WiFi連接]
+        MS_WIFI_CONNECT --> |成功| MS_NET_CHECK[MS_NET_CHECK<br/>網路連通性檢查]
+        MS_WIFI_CONNECT --> |失敗| MS_WIFI_CONNECT
+        
+        MS_NET_CHECK --> |成功| MS_MQTT_SUB[MS_MQTT_SUB<br/>MQTT訂閱]
+        MS_NET_CHECK --> |失敗| MS_WIFI_CONNECT
+        
+        MS_MQTT_SUB --> |成功| MS_RUNNING[MS_RUNNING<br/>正常運行]
+        MS_MQTT_SUB --> |失敗| MS_WIFI_CONNECT
+        
+        MS_RUNNING --> |收到OTA命令| MS_WAIT_OTA[MS_WAIT_OTA<br/>等待OTA資料]
+        MS_RUNNING --> |定期檢查| MS_RUNNING
+        
+        MS_WAIT_OTA --> |接收到資料| MS_PARSE_JSON[MS_PARSE_JSON<br/>解析JSON]
+        MS_WAIT_OTA --> |超時| MS_RUNNING
+        
+        MS_PARSE_JSON --> |解析成功| MS_OTA_UPDATE[MS_OTA_UPDATE<br/>執行OTA更新]
+        MS_PARSE_JSON --> |解析失敗| MS_RUNNING
+        
+        MS_OTA_UPDATE --> |更新成功| RESTART([重啟])
+        MS_OTA_UPDATE --> |更新失敗| MS_RUNNING
+    end
+
+    %% Page Management State Machine
+    subgraph "Page Management System"
+        PM_INIT([PageManager初始化]) --> PM_PM5544[PM5544頁面<br/>測試圖案顯示]
+        
+        PM_PM5544 --> |30秒自動切換| PM_MENU[Menu頁面<br/>主選單]
+        PM_PM5544 --> |手動切換| PM_MENU
+        
+        PM_MENU --> |30秒自動切換| PM_SETTINGS[Settings頁面<br/>設定介面]
+        PM_MENU --> |選擇項目| PM_SETTINGS
+        PM_MENU --> |選擇項目| PM_STATUS
+        PM_MENU --> |選擇項目| PM_PM5544
+        
+        PM_SETTINGS --> |30秒自動切換| PM_STATUS[Status頁面<br/>系統狀態]
+        PM_SETTINGS --> |返回| PM_MENU
+        
+        PM_STATUS --> |30秒自動切換| PM_PM5544
+        PM_STATUS --> |返回| PM_MENU
+    end
+
+    %% MVP Architecture for Pages
+    subgraph "MVP Architecture"
+        subgraph "PM5544 MVP"
+            PM5544_MODEL[PM5544Model<br/>測試圖案資料]
+            PM5544_VIEW[PM5544View<br/>LVGL顯示元件]
+            PM5544_PRESENTER[PM5544Presenter<br/>業務邏輯控制]
+            
+            PM5544_MODEL --> PM5544_VIEW
+            PM5544_PRESENTER --> PM5544_VIEW
+            PM5544_PRESENTER --> PM5544_MODEL
+        end
+        
+        subgraph "Menu MVP"
+            MENU_MODEL[MenuModel<br/>選單項目資料]
+            MENU_VIEW[MenuView<br/>選單UI介面]
+            MENU_PRESENTER[MenuPresenter<br/>選單邏輯控制]
+            
+            MENU_MODEL --> MENU_VIEW
+            MENU_PRESENTER --> MENU_VIEW
+            MENU_PRESENTER --> MENU_MODEL
+        end
+        
+        subgraph "Settings & Status"
+            SETTINGS_VIEW[SettingsView<br/>設定頁面]
+            STATUS_VIEW[StatusView<br/>狀態頁面]
+        end
+    end
+
+    %% System Integration
+    subgraph "System Integration"
+        MAIN[main.cpp<br/>主程式] --> LVGL_INIT[LVGL初始化]
+        MAIN --> MQTT_INIT[MQTT模組初始化]
+        MAIN --> PM_INIT
+        
+        LVGL_INIT --> DISPLAY_DRIVER[顯示驅動程式<br/>LGFX + ILI9341]
+        
+        MQTT_INIT --> MS_WIFI_CONNECT
+        
+        MAIN_LOOP[主迴圈] --> LVGL_HANDLER[lv_timer_handler]
+        MAIN_LOOP --> MQTT_HANDLER[mqtt_state_loop_iteration]
+        MAIN_LOOP --> PAGE_SWITCH[頁面切換邏輯]
+        
+        MQTT_HANDLER --> MS_RUNNING
+        PAGE_SWITCH --> PM_PM5544
+    end
+
+    %% Styling
+    classDef mqttState fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef pageState fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef mvpComponent fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef systemComponent fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class MS_WIFI_CONNECT,MS_NET_CHECK,MS_MQTT_SUB,MS_RUNNING,MS_WAIT_OTA,MS_PARSE_JSON,MS_OTA_UPDATE mqttState
+    class PM_PM5544,PM_MENU,PM_SETTINGS,PM_STATUS pageState
+    class PM5544_MODEL,PM5544_VIEW,PM5544_PRESENTER,MENU_MODEL,MENU_VIEW,MENU_PRESENTER,SETTINGS_VIEW,STATUS_VIEW mvpComponent
+    class MAIN,LVGL_INIT,MQTT_INIT,DISPLAY_DRIVER,MAIN_LOOP,LVGL_HANDLER,MQTT_HANDLER,PAGE_SWITCH systemComponent
