@@ -19,6 +19,9 @@ public:
     bool isCreated() const override;
     
     void updateStatus(const char* status);
+    void updateSystemStatus();
+    void scrollUp();
+    void scrollDown();
 };
 
 #endif // STATUS_VIEW_H

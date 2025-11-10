@@ -90,7 +90,7 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
 
     gfx.startWrite();
     gfx.setAddrWindow(area->x1, area->y1, w, h);
-    gfx.pushColors((uint16_t*)&color_p->full, w * h, true);
+    gfx.pushPixels((uint16_t*)&color_p->full, w * h);
     gfx.endWrite();
 
     /*IMPORTANT!!!

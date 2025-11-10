@@ -1,25 +1,27 @@
 #include "PageManager.h"
-#include "App/Pages/PM5544/PM5544Model.h"
-#include "App/Pages/PM5544/PM5544View.h"
-#include "App/Pages/PM5544/PM5544Presenter.h"
 #include "App/Pages/Menu/MenuModel.h"
 #include "App/Pages/Menu/MenuView.h"
 #include "App/Pages/Menu/MenuPresenter.h"
+#include "App/Pages/Settings/SettingsModel.h"
 #include "App/Pages/Settings/SettingsView.h"
+#include "App/Pages/Settings/SettingsPresenter.h"
+#include "App/Pages/Status/StatusModel.h"
 #include "App/Pages/Status/StatusView.h"
+#include "App/Pages/Status/StatusPresenter.h"
 #include <Arduino.h>
 
 PageManager* PageManager::instance = nullptr;
 
-PageManager::PageManager() : current_page(PAGE_PM5544), previous_page(PAGE_PM5544) {
-    pm5544Model = nullptr;
-    pm5544View = nullptr;
-    pm5544Presenter = nullptr;
+PageManager::PageManager() : current_page(PAGE_MENU), previous_page(PAGE_MENU) {
     menuModel = nullptr;
     menuView = nullptr;
     menuPresenter = nullptr;
+    settingsModel = nullptr;
     settingsView = nullptr;
+    settingsPresenter = nullptr;
+    statusModel = nullptr;
     statusView = nullptr;
+    statusPresenter = nullptr;
 }
 
 PageManager::~PageManager() {
@@ -42,24 +44,27 @@ void PageManager::deleteInstance() {
 }
 
 void PageManager::initializeComponents() {
-    // Initialize MVP components
-    pm5544Model = new PM5544Model();
-    pm5544View = new PM5544View(pm5544Model);
-    pm5544Presenter = new PM5544Presenter(pm5544View, pm5544Model);
-    
+    // Initialize Menu MVP components
     menuModel = new MenuModel();
     menuView = new MenuView(menuModel);
     menuPresenter = new MenuPresenter(menuView, menuModel);
     
+    // Initialize Settings MVP components
+    settingsModel = new SettingsModel();
     settingsView = new SettingsView();
-    statusView = new StatusView();
+    settingsPresenter = new SettingsPresenter(settingsView, settingsModel);
     
-    Serial.println("PageManager components initialized");
+    // Initialize Status MVP components
+    statusModel = new StatusModel();
+    statusView = new StatusView();
+    statusPresenter = new StatusPresenter(statusView, statusModel);
+    
+    Serial.println("PageManager MVP components initialized");
 }
 
 void PageManager::init() {
-    // 初始化時創建第一個頁面
-    switchToPage(PAGE_PM5544);
+    // 初始化時創建第一個頁面（Menu）
+    switchToPage(PAGE_MENU);
 }
 
 bool PageManager::switchToPage(PageID pageId) {
@@ -74,16 +79,6 @@ bool PageManager::switchToPage(PageID pageId) {
     lv_obj_t* screen = nullptr;
     
     switch (pageId) {
-        case PAGE_PM5544:
-            if (pm5544Presenter && pm5544View) {
-                if (!pm5544View->isCreated()) {
-                    pm5544Presenter->onCreate();
-                }
-                pm5544Presenter->onShow();
-                screen = pm5544View->getScreen();
-            }
-            break;
-            
         case PAGE_MENU:
             if (menuPresenter && menuView) {
                 if (!menuView->isCreated()) {
@@ -95,19 +90,21 @@ bool PageManager::switchToPage(PageID pageId) {
             break;
             
         case PAGE_SETTINGS:
-            if (settingsView) {
+            if (settingsPresenter && settingsView) {
                 if (!settingsView->isCreated()) {
-                    settingsView->create();
+                    settingsPresenter->onCreate();
                 }
+                settingsPresenter->onShow();
                 screen = settingsView->getScreen();
             }
             break;
             
         case PAGE_STATUS:
-            if (statusView) {
+            if (statusPresenter && statusView) {
                 if (!statusView->isCreated()) {
-                    statusView->create();
+                    statusPresenter->onCreate();
                 }
+                statusPresenter->onShow();
                 screen = statusView->getScreen();
             }
             break;
@@ -143,7 +140,6 @@ PageID PageManager::getPreviousPage() const {
 
 const char* PageManager::getPageName(PageID pageId) const {
     switch (pageId) {
-        case PAGE_PM5544: return "PM5544 Test";
         case PAGE_MENU: return "Menu";
         case PAGE_SETTINGS: return "Settings";
         case PAGE_STATUS: return "Status";
@@ -156,20 +152,7 @@ void PageManager::cleanup() {
 }
 
 void PageManager::cleanupComponents() {
-    if (pm5544Presenter) {
-        pm5544Presenter->onDestroy();
-        delete pm5544Presenter;
-        pm5544Presenter = nullptr;
-    }
-    if (pm5544View) {
-        delete pm5544View;
-        pm5544View = nullptr;
-    }
-    if (pm5544Model) {
-        delete pm5544Model;
-        pm5544Model = nullptr;
-    }
-    
+    // Cleanup Menu MVP components
     if (menuPresenter) {
         menuPresenter->onDestroy();
         delete menuPresenter;
@@ -184,14 +167,48 @@ void PageManager::cleanupComponents() {
         menuModel = nullptr;
     }
     
+    // Cleanup Settings MVP components
+    if (settingsPresenter) {
+        settingsPresenter->onDestroy();
+        delete settingsPresenter;
+        settingsPresenter = nullptr;
+    }
     if (settingsView) {
         delete settingsView;
         settingsView = nullptr;
+    }
+    if (settingsModel) {
+        delete settingsModel;
+        settingsModel = nullptr;
+    }
+    
+    // Cleanup Status MVP components
+    if (statusPresenter) {
+        statusPresenter->onDestroy();
+        delete statusPresenter;
+        statusPresenter = nullptr;
     }
     if (statusView) {
         delete statusView;
         statusView = nullptr;
     }
+    if (statusModel) {
+        delete statusModel;
+        statusModel = nullptr;
+    }
     
-    Serial.println("PageManager components cleaned up");
+    Serial.println("PageManager MVP components cleaned up");
+}
+
+// 獲取 MVP 組件實例
+MenuPresenter* PageManager::getMenuPresenter() const {
+    return menuPresenter;
+}
+
+SettingsPresenter* PageManager::getSettingsPresenter() const {
+    return settingsPresenter;
+}
+
+StatusPresenter* PageManager::getStatusPresenter() const {
+    return statusPresenter;
 }

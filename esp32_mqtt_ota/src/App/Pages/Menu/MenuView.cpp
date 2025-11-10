@@ -1,4 +1,5 @@
 #include "MenuView.h"
+#include "../../Utils/OLEDLayout.h"
 #include <Arduino.h>
 
 MenuView::MenuView(MenuModel* m) : model(m), screen(nullptr), created(false), title(nullptr) {
@@ -15,26 +16,52 @@ void MenuView::create() {
     if (created) return;
     
     screen = lv_obj_create(nullptr);
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x002244), 0);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
     
-    title = lv_label_create(screen);
-    lv_label_set_text(title, "Main Menu");
-    lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
-    lv_obj_set_pos(title, 10, 10);
+    // 禁用主螢幕滾動條
+    lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
     
-    // Create menu buttons
+    // 使用OLED布局創建頂部標題欄（單色 OLED 上區域 18px）
+    lv_obj_t* topBar = OLEDLayout::createTopBar(screen, "MENU");
+    
+    // 創建內容區域（單色 OLED 下區域 46px）
+    lv_obj_t* contentArea = OLEDLayout::createContentArea(screen);
+    
+    // Create menu buttons in content area (適應48px高度)
     const MenuItem* items = model->getMenuItems();
-    for(int i = 0; i < model->getMenuItemCount(); i++) {
-        buttons[i] = lv_btn_create(screen);
-        lv_obj_set_size(buttons[i], 200, 40);
-        lv_obj_set_pos(buttons[i], 60, 50 + i * 50);
-        lv_obj_add_event_cb(buttons[i], button_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
-        
-        lv_obj_t *label = lv_label_create(buttons[i]);
-        lv_label_set_text(label, items[i].text);
-        lv_obj_center(label);
+    int itemCount = model->getMenuItemCount();
+    
+    // 計算按鈕佈局 - 垂直排列（上下排列）
+    if (itemCount <= 4) {
+        for(int i = 0; i < itemCount && i < 4; i++) {
+            buttons[i] = lv_btn_create(contentArea);
+            
+            // 按鈕尺寸適應OLED - 較寬的按鈕用於垂直排列
+            lv_obj_set_size(buttons[i], 120, 18);
+            
+            // 垂直佈局 - 每個按鈕佔一行
+            lv_obj_set_pos(buttons[i], 4, i * 22);  // 4px左邊距，每行間隔22px
+            
+            // 設置按鈕初始樣式 - 透明背景，細邊框
+            lv_obj_set_style_bg_opa(buttons[i], LV_OPA_TRANSP, 0);
+            lv_obj_set_style_border_width(buttons[i], 1, 0);
+            lv_obj_set_style_border_color(buttons[i], lv_color_hex(0x666666), 0);
+            lv_obj_set_style_radius(buttons[i], 4, 0); // 圓角邊框
+            
+            lv_obj_add_event_cb(buttons[i], button_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+            
+            lv_obj_t *label = lv_label_create(buttons[i]);
+            lv_label_set_text(label, items[i].text);
+            lv_obj_set_style_text_color(label, lv_color_white(), 0); // 白色文字
+            
+            // 使用 14px 字體以適應按鈕尺寸
+            lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_opa(label, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+            
+            lv_obj_center(label);
+        }
     }
     
     updateSelection(model->getSelectedIndex());
@@ -71,9 +98,22 @@ void MenuView::updateSelection(int index) {
     for(int i = 0; i < 4; i++) {
         if (buttons[i]) {
             if (i == index) {
+                // 選中: 藍色框 (0x0066CC)
                 lv_obj_set_style_bg_color(buttons[i], lv_color_hex(0x0066CC), 0);
+                lv_obj_set_style_bg_opa(buttons[i], LV_OPA_COVER, 0);
+                lv_obj_set_style_border_width(buttons[i], 2, 0);
+                lv_obj_set_style_border_color(buttons[i], lv_color_hex(0x0066CC), 0);
             } else {
-                lv_obj_set_style_bg_color(buttons[i], lv_color_hex(0x333333), 0);
+                // 未選中: 沒有背景，只有邊框
+                lv_obj_set_style_bg_opa(buttons[i], LV_OPA_TRANSP, 0);
+                lv_obj_set_style_border_width(buttons[i], 1, 0);
+                lv_obj_set_style_border_color(buttons[i], lv_color_hex(0x666666), 0);
+            }
+            
+            // 所有按鈕的文字都是白色並居中
+            lv_obj_t* label = lv_obj_get_child(buttons[i], 0);
+            if (label) {
+                lv_obj_set_style_text_color(label, lv_color_white(), 0);
             }
         }
     }

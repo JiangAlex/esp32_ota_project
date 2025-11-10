@@ -18,7 +18,7 @@ public:
     MenuModel();
     
     const MenuItem* getMenuItems() const { return menuItems; }
-    int getMenuItemCount() const { return 4; }
+    int getMenuItemCount() const { return 2; }
     int getSelectedIndex() const { return selectedIndex; }
     void setSelectedIndex(int index);
     const MenuItem& getSelectedItem() const;

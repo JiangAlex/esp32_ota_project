@@ -32,5 +32,24 @@ void MenuPresenter::selectMenuItem(int index) {
 
 void MenuPresenter::executeSelectedItem() {
     const MenuItem& item = model->getSelectedItem();
-    Serial.printf("Executing menu item: %s\n", item.text);
+    Serial.printf("Executing menu item: %s (ID: %d)\n", item.text, item.id);
+    
+    // 根據選中項目的ID執行對應動作
+    // 這將由main.cpp中的按鍵處理器調用PageManager進行頁面切換
+}
+
+void MenuPresenter::moveUp() {
+    int currentIndex = model->getSelectedIndex();
+    int newIndex = (currentIndex > 0) ? currentIndex - 1 : model->getMenuItemCount() - 1;
+    selectMenuItem(newIndex);
+}
+
+void MenuPresenter::moveDown() {
+    int currentIndex = model->getSelectedIndex();
+    int newIndex = (currentIndex + 1) % model->getMenuItemCount();
+    selectMenuItem(newIndex);
+}
+
+int MenuPresenter::getCurrentSelection() const {
+    return model->getSelectedIndex();
 }

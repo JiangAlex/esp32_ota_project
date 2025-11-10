@@ -20,6 +20,9 @@ public:
     
     void selectMenuItem(int index);
     void executeSelectedItem();
+    void moveUp();
+    void moveDown();
+    int getCurrentSelection() const;
 };
 
 #endif // MENU_PRESENTER_H

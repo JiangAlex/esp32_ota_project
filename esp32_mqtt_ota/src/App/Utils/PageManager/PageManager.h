@@ -4,19 +4,19 @@
 #include <lvgl.h>
 
 // Forward declarations
-class PM5544Model;
-class PM5544View;
-class PM5544Presenter;
 class MenuModel;
 class MenuView;
 class MenuPresenter;
+class SettingsModel;
 class SettingsView;
+class SettingsPresenter;
+class StatusModel;
 class StatusView;
+class StatusPresenter;
 
 // 頁面ID枚舉
 enum PageID {
-    PAGE_PM5544 = 0,
-    PAGE_MENU,
+    PAGE_MENU = 0,
     PAGE_SETTINGS,
     PAGE_STATUS,
     PAGE_COUNT  // 總頁面數
@@ -29,16 +29,17 @@ private:
     PageID previous_page;
     
     // MVP Components - 使用指標以避免包含所有標頭檔
-    PM5544Model* pm5544Model;
-    PM5544View* pm5544View;
-    PM5544Presenter* pm5544Presenter;
-    
     MenuModel* menuModel;
     MenuView* menuView;
     MenuPresenter* menuPresenter;
     
+    SettingsModel* settingsModel;
     SettingsView* settingsView;
+    SettingsPresenter* settingsPresenter;
+    
+    StatusModel* statusModel;
     StatusView* statusView;
+    StatusPresenter* statusPresenter;
 
     // Private constructor for singleton
     PageManager();
@@ -58,6 +59,11 @@ public:
     PageID getCurrentPage() const;
     PageID getPreviousPage() const;
     const char* getPageName(PageID pageId) const;
+    
+    // 獲取 MVP 組件實例
+    MenuPresenter* getMenuPresenter() const;
+    SettingsPresenter* getSettingsPresenter() const;
+    StatusPresenter* getStatusPresenter() const;
     
     // 清理所有頁面
     void cleanup();

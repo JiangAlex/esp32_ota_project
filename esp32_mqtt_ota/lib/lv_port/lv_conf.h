@@ -14,7 +14,7 @@
 #define LV_TICK_CUSTOM 1
 #define LV_TICK_CUSTOM_INCLUDE "Arduino.h"
 #define LV_TICK_CUSTOM_SYS_TIME_EXPR (millis())
-#define LV_DPI_DEF 130
+#define LV_DPI_DEF 160
 
 #define LV_USE_ANIMATION 1
 #define LV_USE_SHADOW 1
@@ -33,9 +33,14 @@
 #define LV_USE_ASSERT_OBJ 0
 #define LV_USE_ASSERT_STYLE 0
 
+#define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#define LV_FONT_DEFAULT &lv_font_montserrat_12
 #define LV_FONT_MONTSERRAT_20 1
+
+// 字體渲染優化設定
+#define LV_FONT_FMT_TXT_LARGE 0
+#define LV_USE_FONT_PLACEHOLDER 1
 
 #define LV_USE_ARC 1
 #define LV_USE_BAR 1
