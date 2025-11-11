@@ -1,29 +1,26 @@
-#ifndef STATUS_VIEW_H
-#define STATUS_VIEW_H
-
+#pragma once
 #include "../../MVP/BaseView.h"
+#include <lvgl.h>
 
-class StatusView : public BaseView {
+class SystemView : public BaseView {
 private:
     lv_obj_t* screen;
-    bool created;
-    lv_obj_t* statusLabel;
+    lv_obj_t* contentLabel;
     lv_obj_t* statusBar;  // 頂部狀態欄
+    bool created;
+    int scrollOffset;
 
 public:
-    StatusView();
-    ~StatusView();
+    SystemView();
+    ~SystemView();
     
     void create() override;
     void destroy() override;
     lv_obj_t* getScreen() const override;
     bool isCreated() const override;
     
-    void updateStatus(const char* status);
-    void updateSystemStatus();
+    // 滾動功能
     void scrollUp();
     void scrollDown();
     void updateStatusBar(const char* batteryText, const char* timeText);
 };
-
-#endif // STATUS_VIEW_H

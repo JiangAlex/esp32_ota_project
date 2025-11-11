@@ -67,3 +67,9 @@ void StatusPresenter::scrollDown() {
         view->scrollDown();
     }
 }
+
+void StatusPresenter::updateStatusBar(const char* batteryText, const char* timeText) {
+    if (view) {
+        view->updateStatusBar(batteryText, timeText);
+    }
+}

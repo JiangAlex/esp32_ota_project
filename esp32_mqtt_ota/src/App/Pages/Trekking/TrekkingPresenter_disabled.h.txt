@@ -1,0 +1,41 @@
+#ifndef TREKKING_PRESENTER_H
+#define TREKKING_PRESENTER_H
+
+// Forward declarations
+class TrekkingView;
+class TrekkingModel;
+
+class TrekkingPresenter {
+private:
+    TrekkingView* view;
+    TrekkingModel* model;
+    
+public:
+    TrekkingPresenter(TrekkingView* view, TrekkingModel* model);
+    virtual ~TrekkingPresenter();
+    
+    // BasePresenter 實現
+    void onCreate();
+    void onDestroy();
+    void onShow();
+    void onHide();
+    
+    // Trekking specific methods
+    void startTracking();
+    void stopTracking();
+    void resetTracking();
+    void updateDisplay();
+    
+    // 按鍵事件處理
+    void handleOKButton();
+    void handleUpButton();
+    void handleDownButton();
+    
+    // Getters for view updates
+    bool isTracking() const;
+    const char* getFormattedDistance() const;
+    const char* getFormattedTime() const;
+    int getStepCount() const;
+};
+
+#endif // TREKKING_PRESENTER_H

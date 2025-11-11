@@ -20,7 +20,7 @@ enum ButtonEvent {
     BTN_EVENT_NONE = 0,
     BTN_EVENT_PRESS,    // 短按
     BTN_EVENT_RELEASE,  // 釋放
-    BTN_EVENT_HOLD,     // 長按 (>500ms)
+    BTN_EVENT_HOLD,     // 長按 (>2000ms)
     BTN_EVENT_DOUBLE    // 雙擊 (<300ms間隔)
 };
 
@@ -42,7 +42,7 @@ private:
     
     // 按鍵去抖動參數
     static const unsigned long DEBOUNCE_DELAY = 50;    // 50ms去抖動
-    static const unsigned long HOLD_TIME = 500;        // 500ms長按
+    static const unsigned long HOLD_TIME = 2000;       // 2000ms長按 (2秒)
     static const unsigned long DOUBLE_CLICK_TIME = 300; // 300ms雙擊間隔
     
 public:

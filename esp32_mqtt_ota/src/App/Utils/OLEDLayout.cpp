@@ -72,3 +72,57 @@ void OLEDLayout::applyOLEDStyle(lv_obj_t* obj) {
     lv_obj_set_style_border_width(obj, 1, 0);
     lv_obj_set_style_border_color(obj, lv_color_white(), 0);
 }
+
+lv_obj_t* OLEDLayout::createStatusBar(lv_obj_t* parent) {
+    // 創建16px高的狀態欄
+    lv_obj_t* statusBar = lv_obj_create(parent);
+    lv_obj_set_size(statusBar, OLED_WIDTH, 16);
+    lv_obj_set_pos(statusBar, 0, 0);
+    
+    // 設置狀態欄樣式
+    lv_obj_set_style_bg_color(statusBar, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(statusBar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(statusBar, 0, 0);
+    lv_obj_set_style_pad_all(statusBar, 1, 0);
+    
+    // Create battery label (left side) - Same format as MainMenu
+    lv_obj_t* batteryLabel = lv_label_create(statusBar);
+    lv_label_set_text(batteryLabel, "Batt:85%");
+    lv_obj_set_style_text_font(batteryLabel, &lv_font_unscii_8, 0);
+    lv_obj_set_style_text_color(batteryLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_opa(batteryLabel, LV_OPA_COVER, 0);
+    lv_obj_set_style_outline_width(batteryLabel, 0, 0);
+    lv_obj_set_style_border_width(batteryLabel, 0, 0);
+    lv_obj_set_style_bg_opa(batteryLabel, LV_OPA_TRANSP, 0);
+    lv_obj_align(batteryLabel, LV_ALIGN_LEFT_MID, 2, 0);
+    
+    // Create time label (right side) - Same format as MainMenu
+    lv_obj_t* timeLabel = lv_label_create(statusBar);
+    lv_label_set_text(timeLabel, "14:30");
+    lv_obj_set_style_text_font(timeLabel, &lv_font_unscii_8, 0);
+    lv_obj_set_style_text_color(timeLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_opa(timeLabel, LV_OPA_COVER, 0);
+    lv_obj_set_style_outline_width(timeLabel, 0, 0);
+    lv_obj_set_style_border_width(timeLabel, 0, 0);
+    lv_obj_set_style_bg_opa(timeLabel, LV_OPA_TRANSP, 0);
+    lv_obj_align(timeLabel, LV_ALIGN_RIGHT_MID, -2, 0);
+    
+    Serial.println("Status bar created with battery and time");
+    return statusBar;
+}
+
+void OLEDLayout::updateStatusBar(lv_obj_t* statusBar, const char* batteryText, const char* timeText) {
+    if (!statusBar) return;
+    
+    // Update battery label (first child object)
+    lv_obj_t* batteryLabel = lv_obj_get_child(statusBar, 0);
+    if (batteryLabel && lv_obj_check_type(batteryLabel, &lv_label_class)) {
+        lv_label_set_text(batteryLabel, batteryText);
+    }
+    
+    // Update time label (second child object)
+    lv_obj_t* timeLabel = lv_obj_get_child(statusBar, 1);
+    if (timeLabel && lv_obj_check_type(timeLabel, &lv_label_class)) {
+        lv_label_set_text(timeLabel, timeText);
+    }
+}

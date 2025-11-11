@@ -26,6 +26,12 @@ public:
     
     // 設置OLED優化的字體和樣式
     static void applyOLEDStyle(lv_obj_t* obj);
+    
+    // 創建統一的狀態欄 (電池 + 時間)
+    static lv_obj_t* createStatusBar(lv_obj_t* parent);
+    
+    // 更新狀態欄信息
+    static void updateStatusBar(lv_obj_t* statusBar, const char* batteryText, const char* timeText);
 };
 
 #endif // OLED_LAYOUT_H

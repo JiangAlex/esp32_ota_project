@@ -9,6 +9,7 @@ MenuPresenter::~MenuPresenter() {}
 void MenuPresenter::onCreate() {
     Serial.println("Menu Presenter onCreate");
     view->create();
+    // MainMenu 不再需要初始化選擇
 }
 
 void MenuPresenter::onDestroy() {
@@ -18,6 +19,7 @@ void MenuPresenter::onDestroy() {
 
 void MenuPresenter::onShow() {
     Serial.println("Menu displayed");
+    // MainMenu 不再需要選擇狀態更新
 }
 
 void MenuPresenter::onHide() {
@@ -52,4 +54,24 @@ void MenuPresenter::moveDown() {
 
 int MenuPresenter::getCurrentSelection() const {
     return model->getSelectedIndex();
+}
+
+void MenuPresenter::handleUpButton() {
+    Serial.println("Menu: UP button - No action (handled by main.cpp)");
+    // UP 按鍵由 main.cpp 直接處理頁面跳轉
+}
+
+void MenuPresenter::handleDownButton() {
+    Serial.println("Menu: DOWN button - No action (handled by main.cpp)");
+    // DOWN 按鍵由 main.cpp 直接處理頁面跳轉
+}
+
+void MenuPresenter::updateDisplay() {
+    if (view) {
+        // 更新時間和日期顯示
+        view->updateTimeAndDate();
+        // 更新電池電量顯示
+        view->updateBatteryLevel();
+        Serial.println("Menu: Display updated (time, date, battery)");
+    }
 }

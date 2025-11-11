@@ -7,18 +7,26 @@
 class MenuModel;
 class MenuView;
 class MenuPresenter;
-class SettingsModel;
-class SettingsView;
-class SettingsPresenter;
+// Settings相關類別已移除
+// class SettingsModel;
+// class SettingsView;
+// class SettingsPresenter;
+// class TrekkingModel;
+class TrekkingView;
+// class TrekkingPresenter;
+class WalkieTalkieView;
+class SystemView;
 class StatusModel;
 class StatusView;
 class StatusPresenter;
 
 // 頁面ID枚舉
 enum PageID {
-    PAGE_MENU = 0,
-    PAGE_SETTINGS,
+    PAGE_MAINMENU = 0,
+    PAGE_TREKKING,
+    PAGE_WALKIETALKIE,
     PAGE_STATUS,
+    PAGE_SYSTEM,
     PAGE_COUNT  // 總頁面數
 };
 
@@ -33,9 +41,18 @@ private:
     MenuView* menuView;
     MenuPresenter* menuPresenter;
     
-    SettingsModel* settingsModel;
-    SettingsView* settingsView;
-    SettingsPresenter* settingsPresenter;
+        // Settings相關組件已移除
+    // SettingsModel* settingsModel;
+    // SettingsView* settingsView;
+    // SettingsPresenter* settingsPresenter;
+    
+    // 新增頁面組件
+    // TrekkingModel* trekkingModel;
+    TrekkingView* trekkingView;
+    // TrekkingPresenter* trekkingPresenter;
+    
+    WalkieTalkieView* walkieTalkieView;
+    SystemView* systemView;
     
     StatusModel* statusModel;
     StatusView* statusView;
@@ -62,8 +79,14 @@ public:
     
     // 獲取 MVP 組件實例
     MenuPresenter* getMenuPresenter() const;
-    SettingsPresenter* getSettingsPresenter() const;
+    // SettingsPresenter* getSettingsPresenter() const; // Settings已移除
+    // TrekkingPresenter* getTrekkingPresenter() const; // 暫時停用
     StatusPresenter* getStatusPresenter() const;
+    
+    // 獲取 View 組件實例（用於滾動功能）
+    TrekkingView* getTrekkingView() const;
+    WalkieTalkieView* getWalkieTalkieView() const;
+    SystemView* getSystemView() const;
     
     // 清理所有頁面
     void cleanup();

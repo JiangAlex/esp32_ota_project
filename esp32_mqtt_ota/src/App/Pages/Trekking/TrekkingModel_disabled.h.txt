@@ -1,0 +1,38 @@
+#ifndef TREKKING_MODEL_H
+#define TREKKING_MODEL_H
+
+#include "../../MVP/BaseModel.h"
+
+class TrekkingModel : public BaseModel {
+private:
+    float distance;          // 行走距離 (km)
+    unsigned long startTime; // 開始時間
+    bool isTracking;         // 是否正在記錄
+    int stepCount;           // 步數
+
+public:
+    TrekkingModel();
+    virtual ~TrekkingModel();
+    
+    // 資料操作
+    void startTracking();
+    void stopTracking();
+    void resetTracking();
+    
+    // Getters
+    float getDistance() const { return distance; }
+    unsigned long getStartTime() const { return startTime; }
+    bool getIsTracking() const { return isTracking; }
+    int getStepCount() const { return stepCount; }
+    
+    // Setters
+    void setDistance(float dist) { distance = dist; }
+    void setStepCount(int steps) { stepCount = steps; }
+    
+    // 計算相關
+    void updateDistance();
+    unsigned long getElapsedTime() const;
+    const char* formatTime(unsigned long seconds) const;
+};
+
+#endif // TREKKING_MODEL_H

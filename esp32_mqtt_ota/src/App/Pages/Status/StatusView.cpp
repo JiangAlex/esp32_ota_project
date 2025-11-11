@@ -2,7 +2,7 @@
 #include "../../Utils/OLEDLayout.h"
 #include <Arduino.h>
 
-StatusView::StatusView() : screen(nullptr), created(false), statusLabel(nullptr) {}
+StatusView::StatusView() : screen(nullptr), created(false), statusLabel(nullptr), statusBar(nullptr) {}
 
 StatusView::~StatusView() {
     destroy();
@@ -18,24 +18,37 @@ void StatusView::create() {
     // 禁用主螢幕滾動條
     lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
     
-    // 使用OLED布局創建頂部標題欄（單色 OLED 上區域 18px）
-    lv_obj_t* topBar = OLEDLayout::createTopBar(screen, "STATUS");
+    // 創建統一的狀態欄 (16px 高度)
+    statusBar = OLEDLayout::createStatusBar(screen);
     
-    // 創建內容區域（單色 OLED 下區域 46px）
-    lv_obj_t* contentArea = OLEDLayout::createContentArea(screen);
+    // 創建內容區域（48px 高度，從狀態欄下方開始）
+    lv_obj_t* contentArea = lv_obj_create(screen);
+    lv_obj_set_size(contentArea, 128, 48);
+    lv_obj_set_pos(contentArea, 0, 16);
+    lv_obj_set_style_bg_color(contentArea, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(contentArea, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(contentArea, 0, 0);
+    lv_obj_set_style_pad_all(contentArea, 2, 0);
+    lv_obj_set_scrollbar_mode(contentArea, LV_SCROLLBAR_MODE_OFF);
     
     // 創建狀態信息標籤
     statusLabel = lv_label_create(contentArea);
+    
+    // 設置標籤寬度和自動換行
+    lv_obj_set_width(statusLabel, 120); // 設置寬度 (128-8px邊距)
+    lv_label_set_long_mode(statusLabel, LV_LABEL_LONG_WRAP); // 啟用自動換行
+    lv_obj_set_style_text_line_space(statusLabel, 1, 0); // 增加行間距以提高可讀性
+    
     updateSystemStatus(); // 初始化狀態信息
     lv_obj_set_style_text_color(statusLabel, lv_color_white(), 0);
     
-    // 設置字體大小 - 使用 14px 字體改善點陣連續性
-    lv_obj_set_style_text_font(statusLabel, &lv_font_montserrat_14, 0);
+    // 設置字體大小 - 使用 UNSCII 8px 點陣字體專為OLED優化
+    lv_obj_set_style_text_font(statusLabel, &lv_font_unscii_8, 0);
     
-    // 改善文字顯示品質 - 使文字更平滑連續
+    // 改善文字顯示品質 - 針對緊湊顯示優化
     lv_obj_set_style_text_opa(statusLabel, LV_OPA_COVER, 0);
     lv_obj_set_style_text_line_space(statusLabel, 0, 0); // 最小行間距
-    lv_obj_set_style_text_letter_space(statusLabel, 1, 0); // 微小字母間距改善渲染
+    lv_obj_set_style_text_letter_space(statusLabel, 0, 0); // 點陣字體無需字母間距
     
     // 確保文字對齊和清晰度
     lv_obj_set_style_text_align(statusLabel, LV_TEXT_ALIGN_LEFT, 0);
@@ -90,16 +103,14 @@ void StatusView::updateSystemStatus() {
     size_t freeHeap = ESP.getFreeHeap();
     size_t totalHeap = ESP.getHeapSize();
     
-    // 格式化狀態信息（適合48px高度，4行文字）
-    char statusText[200];
-    // Current build uses Montserrat (Latin) as LVGL default font.
-    // Chinese glyphs are not available in that font, so use an
-    // English fallback here so status is readable immediately.
+    // 格式化狀態信息（優化為自動換行佈局）
+    char statusText[250];
     snprintf(statusText, sizeof(statusText),
-        "System: OK\n"
-        "Memory: %dKB/%dKB\n"
+        "System Status: OK\n"
+        "Memory: %dK / %dK free\n"  
         "Uptime: %02lu:%02lu:%02lu\n"
-        "GPIO: 32:OK 33:OK 34:--",
+        "GPIO Status:\n"
+        "32:OK 33:OK 34:-- WiFi:--",
         (int)(freeHeap/1024), (int)(totalHeap/1024),
         hours, minutes, seconds
     );
@@ -136,4 +147,10 @@ void StatusView::scrollDown() {
     
     lv_obj_set_y(statusLabel, newY);
     Serial.printf("Status scroll down - Y position: %d\n", newY);
+}
+
+void StatusView::updateStatusBar(const char* batteryText, const char* timeText) {
+    if (statusBar) {
+        OLEDLayout::updateStatusBar(statusBar, batteryText, timeText);
+    }
 }

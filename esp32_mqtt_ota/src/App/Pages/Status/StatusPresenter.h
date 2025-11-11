@@ -22,6 +22,7 @@ public:
     void updateStatus();
     void scrollUp();
     void scrollDown();
+    void updateStatusBar(const char* batteryText, const char* timeText);
 };
 
 #endif // STATUS_PRESENTER_H

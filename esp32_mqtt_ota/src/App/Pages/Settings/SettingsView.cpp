@@ -24,26 +24,31 @@ void SettingsView::create() {
     // 創建內容區域（單色 OLED 下區域 46px）
     lv_obj_t* contentArea = OLEDLayout::createContentArea(screen);
     
-    // 創建設置項目標籤
+    // 創建設置項目標籤（簡化項目名稱以適合小螢幕）
     contentLabel = lv_label_create(contentArea);
+    
+    // 設置標籤寬度和自動換行
+    lv_obj_set_width(contentLabel, 120); // 設置寬度 (128-8px邊距)
+    lv_label_set_long_mode(contentLabel, LV_LABEL_LONG_WRAP); // 啟用自動換行
+    
     lv_label_set_text(contentLabel, 
-        "WiFi Settings\n"
-        "Display Settings\n"
-        "System Settings\n"
-        "Button Config\n"
-        "Screen Timeout\n"
+        "WiFi Config\n"
+        "Display\n"
+        "System\n"
+        "Buttons\n"
+        "Timeout\n"
         "Brightness\n"
         "Language\n"
-        "Factory Reset");
+        "Reset");
     lv_obj_set_style_text_color(contentLabel, lv_color_white(), 0);
     
-    // 設置字體大小 - 使用 14px 字體改善點陣連續性
-    lv_obj_set_style_text_font(contentLabel, &lv_font_montserrat_14, 0);
+    // 設置字體大小 - 使用 UNSCII 8px 點陣字體專為OLED優化
+    lv_obj_set_style_text_font(contentLabel, &lv_font_unscii_8, 0);
     
-    // 改善文字顯示品質 - 使文字更平滑連續
+    // 改善文字顯示品質 - 針對緊湊顯示優化
     lv_obj_set_style_text_opa(contentLabel, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_line_space(contentLabel, 0, 0); // 最小行間距
-    lv_obj_set_style_text_letter_space(contentLabel, 1, 0); // 微小字母間距改善渲染
+    lv_obj_set_style_text_line_space(contentLabel, 0, 0); // 最小行間距適合更多內容
+    lv_obj_set_style_text_letter_space(contentLabel, 0, 0); // 點陣字體無需字母間距
     
     // 確保文字對齊和清晰度
     lv_obj_set_style_text_align(contentLabel, LV_TEXT_ALIGN_LEFT, 0);

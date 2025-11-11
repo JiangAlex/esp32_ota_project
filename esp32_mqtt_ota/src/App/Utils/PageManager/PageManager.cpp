@@ -2,9 +2,15 @@
 #include "App/Pages/Menu/MenuModel.h"
 #include "App/Pages/Menu/MenuView.h"
 #include "App/Pages/Menu/MenuPresenter.h"
-#include "App/Pages/Settings/SettingsModel.h"
-#include "App/Pages/Settings/SettingsView.h"
-#include "App/Pages/Settings/SettingsPresenter.h"
+// Settings頁面已移除
+// #include "App/Pages/Settings/SettingsModel.h"
+// #include "App/Pages/Settings/SettingsView.h"
+// #include "App/Pages/Settings/SettingsPresenter.h"
+// #include "App/Pages/Trekking/TrekkingModel.h"
+#include "App/Pages/Trekking/TrekkingView.h"
+// #include "App/Pages/Trekking/TrekkingPresenter.h"
+#include "App/Pages/WalkieTalkie/WalkieTalkieView.h"
+#include "App/Pages/System/SystemView.h"
 #include "App/Pages/Status/StatusModel.h"
 #include "App/Pages/Status/StatusView.h"
 #include "App/Pages/Status/StatusPresenter.h"
@@ -12,13 +18,21 @@
 
 PageManager* PageManager::instance = nullptr;
 
-PageManager::PageManager() : current_page(PAGE_MENU), previous_page(PAGE_MENU) {
+PageManager::PageManager() : current_page(PAGE_MAINMENU), previous_page(PAGE_MAINMENU) {
     menuModel = nullptr;
     menuView = nullptr;
     menuPresenter = nullptr;
-    settingsModel = nullptr;
-    settingsView = nullptr;
-    settingsPresenter = nullptr;
+    // Settings相關組件已移除
+    // settingsModel = nullptr;
+    // settingsView = nullptr;
+    // settingsPresenter = nullptr;
+    // 新頁面組件初始化
+    // trekkingModel = nullptr;
+    trekkingView = nullptr;
+    // trekkingPresenter = nullptr;
+    walkieTalkieView = nullptr;
+    systemView = nullptr;
+    // Status組件
     statusModel = nullptr;
     statusView = nullptr;
     statusPresenter = nullptr;
@@ -49,10 +63,19 @@ void PageManager::initializeComponents() {
     menuView = new MenuView(menuModel);
     menuPresenter = new MenuPresenter(menuView, menuModel);
     
-    // Initialize Settings MVP components
-    settingsModel = new SettingsModel();
-    settingsView = new SettingsView();
-    settingsPresenter = new SettingsPresenter(settingsView, settingsModel);
+    // Settings頁面已移除，以後可以用於新的頁面
+    // settingsModel = new SettingsModel();
+    // settingsView = new SettingsView();
+    // settingsPresenter = new SettingsPresenter(settingsView, settingsModel);
+    
+    // Initialize Trekking MVP components - temporarily disabled
+    // trekkingModel = new TrekkingModel();
+    trekkingView = new TrekkingView();
+    // trekkingPresenter = new TrekkingPresenter(trekkingView, trekkingModel);
+    
+    // Initialize simple view-only pages
+    walkieTalkieView = new WalkieTalkieView();
+    systemView = new SystemView();
     
     // Initialize Status MVP components
     statusModel = new StatusModel();
@@ -63,8 +86,8 @@ void PageManager::initializeComponents() {
 }
 
 void PageManager::init() {
-    // 初始化時創建第一個頁面（Menu）
-    switchToPage(PAGE_MENU);
+    // 初始化時創建第一個頁面（MainMenu）
+    switchToPage(PAGE_MAINMENU);
 }
 
 bool PageManager::switchToPage(PageID pageId) {
@@ -79,7 +102,7 @@ bool PageManager::switchToPage(PageID pageId) {
     lv_obj_t* screen = nullptr;
     
     switch (pageId) {
-        case PAGE_MENU:
+        case PAGE_MAINMENU:
             if (menuPresenter && menuView) {
                 if (!menuView->isCreated()) {
                     menuPresenter->onCreate();
@@ -89,13 +112,30 @@ bool PageManager::switchToPage(PageID pageId) {
             }
             break;
             
-        case PAGE_SETTINGS:
-            if (settingsPresenter && settingsView) {
-                if (!settingsView->isCreated()) {
-                    settingsPresenter->onCreate();
+        case PAGE_TREKKING:
+            if (trekkingView) {
+                if (!trekkingView->isCreated()) {
+                    trekkingView->create();
                 }
-                settingsPresenter->onShow();
-                screen = settingsView->getScreen();
+                screen = trekkingView->getScreen();
+            }
+            break;
+            
+        case PAGE_WALKIETALKIE:
+            if (walkieTalkieView) {
+                if (!walkieTalkieView->isCreated()) {
+                    walkieTalkieView->create();
+                }
+                screen = walkieTalkieView->getScreen();
+            }
+            break;
+            
+        case PAGE_SYSTEM:
+            if (systemView) {
+                if (!systemView->isCreated()) {
+                    systemView->create();
+                }
+                screen = systemView->getScreen();
             }
             break;
             
@@ -140,9 +180,11 @@ PageID PageManager::getPreviousPage() const {
 
 const char* PageManager::getPageName(PageID pageId) const {
     switch (pageId) {
-        case PAGE_MENU: return "Menu";
-        case PAGE_SETTINGS: return "Settings";
+        case PAGE_MAINMENU: return "MainMenu";
+        case PAGE_TREKKING: return "Trekking";
+        case PAGE_WALKIETALKIE: return "WalkieTalkie";
         case PAGE_STATUS: return "Status";
+        case PAGE_SYSTEM: return "System";
         default: return "Unknown";
     }
 }
@@ -167,19 +209,44 @@ void PageManager::cleanupComponents() {
         menuModel = nullptr;
     }
     
-    // Cleanup Settings MVP components
-    if (settingsPresenter) {
-        settingsPresenter->onDestroy();
-        delete settingsPresenter;
-        settingsPresenter = nullptr;
+    // Settings組件已移除
+    // if (settingsPresenter) {
+    //     settingsPresenter->onDestroy();
+    //     delete settingsPresenter;
+    //     settingsPresenter = nullptr;
+    // }
+    // if (settingsView) {
+    //     delete settingsView;
+    //     settingsView = nullptr;
+    // }
+    // if (settingsModel) {
+    //     delete settingsModel;
+    //     settingsModel = nullptr;
+    // }
+    
+    // Cleanup Trekking MVP components
+    // if (trekkingPresenter) {
+    //     trekkingPresenter->onDestroy();
+    //     delete trekkingPresenter;
+    //     trekkingPresenter = nullptr;
+    // }
+    if (trekkingView) {
+        delete trekkingView;
+        trekkingView = nullptr;
     }
-    if (settingsView) {
-        delete settingsView;
-        settingsView = nullptr;
+    // if (trekkingModel) {
+    //     delete trekkingModel;
+    //     trekkingModel = nullptr;
+    // }
+    
+    // Cleanup view-only pages
+    if (walkieTalkieView) {
+        delete walkieTalkieView;
+        walkieTalkieView = nullptr;
     }
-    if (settingsModel) {
-        delete settingsModel;
-        settingsModel = nullptr;
+    if (systemView) {
+        delete systemView;
+        systemView = nullptr;
     }
     
     // Cleanup Status MVP components
@@ -205,10 +272,27 @@ MenuPresenter* PageManager::getMenuPresenter() const {
     return menuPresenter;
 }
 
-SettingsPresenter* PageManager::getSettingsPresenter() const {
-    return settingsPresenter;
-}
+// Settings getter已移除
+// SettingsPresenter* PageManager::getSettingsPresenter() const {
+//     return settingsPresenter;
+// }
+
+// TrekkingPresenter* PageManager::getTrekkingPresenter() const {
+//     return trekkingPresenter;
+// }
 
 StatusPresenter* PageManager::getStatusPresenter() const {
     return statusPresenter;
+}
+
+TrekkingView* PageManager::getTrekkingView() const {
+    return trekkingView;
+}
+
+WalkieTalkieView* PageManager::getWalkieTalkieView() const {
+    return walkieTalkieView;
+}
+
+SystemView* PageManager::getSystemView() const {
+    return systemView;
 }

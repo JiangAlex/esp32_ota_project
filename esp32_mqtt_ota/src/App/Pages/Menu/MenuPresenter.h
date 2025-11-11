@@ -23,6 +23,13 @@ public:
     void moveUp();
     void moveDown();
     int getCurrentSelection() const;
+    
+    // 按鈕處理方法
+    void handleUpButton();
+    void handleDownButton();
+    
+    // 時間更新方法
+    void updateDisplay();
 };
 
 #endif // MENU_PRESENTER_H

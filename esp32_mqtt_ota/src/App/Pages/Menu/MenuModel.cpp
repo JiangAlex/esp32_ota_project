@@ -1,14 +1,14 @@
 #include "MenuModel.h"
 
 MenuModel::MenuModel() : selectedIndex(0) {
-    menuItems[0] = {"Settings", 0, true};
-    menuItems[1] = {"Status", 1, true};
-    menuItems[2] = {"", 2, false}; // 未使用的項目
-    menuItems[3] = {"", 3, false}; // 未使用的項目
+    menuItems[0] = {"Trekking", 0, true};
+    menuItems[1] = {"WalkieTalkie", 1, true};
+    menuItems[2] = {"Status", 2, true};
+    menuItems[3] = {"System", 3, true};
 }
 
 void MenuModel::setSelectedIndex(int index) {
-    if (index >= 0 && index < 2) {
+    if (index >= 0 && index < 4) {
         selectedIndex = index;
     }
 }
