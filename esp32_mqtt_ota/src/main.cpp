@@ -1,15 +1,16 @@
 /*
-  ESP32 OLED Display Application with 3-Button Control
+  ESP32 OLED Display Application with 3-Button Control (HAL Integrated)
   
   This application provides a 128x64 OLED display interface using LVGL with LovyanGFX.
   Features include 3-button navigation, page management with MVP architecture, and visual display.
   The application supports multiple pages (Menu, Settings, Status) with button control.
   
-  Hardware Configuration:
-  - Display: SSD1306 128x64 OLED (I2C: SDA=21, SCL=22, Addr=0x3C)
-  - Button 1: GPIO 32 (Menu/OK) - Short: Menu, Long: Settings
-  - Button 2: GPIO 33 (UP/Back) - Short: Previous page, Long: Status  
-  - Button 3: GPIO 34 (Down/Fn) - Short: Next page, Long: Reserved, Double: Function
+  Hardware abstraction layer (HAL) manages all hardware modules:
+  - Display: SSD1306 128x64 OLED (I2C: SDA=21, SCL=22, Addr=0x3C)  
+  - Buttons: GPIO 32 (Menu/OK), GPIO 33 (UP/Back), GPIO 34 (Down/Fn)
+  - SA818: Radio transceiver module
+  - Clock: Time management with Taiwan timezone
+  - Power: Battery monitoring and power management
   
   注意: GPIO 34需要外部10kΩ上拉電阻連接到3.3V
   
@@ -20,74 +21,54 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
-#include <LovyanGFX.hpp>
-#include "LGFX_ChappieCore.hpp"
-#include <time.h>
-#include <sys/time.h>
+
+// HAL System
+#include "App/Common/HAL/HAL.h"
+#include "App/Common/DataProc/DataProc.h"
+
+// Application Framework
 #include "App/Utils/PageManager/PageManager.h"
-#include "App/Utils/ButtonManager.h"
 #include "App/Pages/Status/StatusView.h"
 #include "App/Pages/Status/StatusPresenter.h"
-// Settings頁面已移除
-// #include "App/Pages/Settings/SettingsView.h"
-// #include "App/Pages/Settings/SettingsPresenter.h"
 #include "App/Pages/Menu/MenuPresenter.h"
 #include "App/Pages/Trekking/TrekkingView.h"
 #include "App/Pages/WalkieTalkie/WalkieTalkieView.h"
 #include "App/Pages/System/SystemView.h"
 
-static LGFX tft; 
+// Application state
 static PageManager* pageManager = nullptr;
-static ButtonManager* buttonManager = nullptr;
 static bool scrollMode = false; // 滾動模式狀態
 
 // LVGL display buffer for 128x64 OLED
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf[128 * 8]; // 8 lines buffer for 128x64 OLED
+static lv_color_t buf[LVGL_BUFFER_SIZE]; // Buffer defined in HAL_Config.h
 
-// LVGL display driver callback
+// LVGL display driver callback using HAL
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
     uint32_t w = (area->x2 - area->x1 + 1);
     uint32_t h = (area->y2 - area->y1 + 1);
 
-    tft.startWrite();
-    tft.setAddrWindow(area->x1, area->y1, w, h);
-    tft.pushPixels((uint16_t*)&color_p->full, w * h);
-    tft.endWrite();
+    HAL::Display_SetAddrWindow(area->x1, area->y1, area->x2, area->y2);
+    HAL::Display_SendPixels((uint16_t*)&color_p->full, w * h);
 
     lv_disp_flush_ready(disp);
 }
 
-// 台灣時間工具函數
-void getTaiwanTime(char* timeStr, char* battStr) {
-    struct tm timeinfo;
-    time_t now = time(nullptr);
-    localtime_r(&now, &timeinfo);
-    
-    // 檢查時間是否有效
-    if (timeinfo.tm_year < 125 || timeinfo.tm_year > 200) {
-        // 時間無效，使用預設時間
-        strcpy(timeStr, "14:30");
-    } else {
-        // 格式化時間 (24小時制，台灣習慣)
-        strftime(timeStr, 16, "%H:%M", &timeinfo);
-    }
-    
-    // Simulate battery level (85-99%)
-    int battPercent = 85 + (millis() / 10000) % 15;
-    snprintf(battStr, 16, "Batt:%d%%", battPercent);
+// Helper function for time and battery status using HAL
+void getTimeAndBattery(char* timeStr, char* battStr) {
+    HAL::Clock_GetTimeString(timeStr, battStr);
 }
 
-// 按鍵事件處理函數
+// 按鍵事件處理函數 (使用HAL系統)
 void handleButtonEvents() {
-  if (!pageManager || !buttonManager) return;
+  if (!pageManager) return;
   
   PageID currentPage = pageManager->getCurrentPage();
   MenuPresenter* menuPresenter = pageManager->getMenuPresenter();
   
   // 檢查Menu/OK按鍵 (GPIO 32)
-  ButtonEvent menuEvent = buttonManager->getButtonEvent(ButtonManager::BTN_MENU_OK);
-  if (menuEvent == BTN_EVENT_PRESS) {
+  Button_Event_t menuEvent = HAL::Button_GetEvent(HAL::BUTTON_MENU_OK);
+  if (menuEvent == BUTTON_EVENT_PRESS) {
     Serial.printf("Menu/OK button pressed (Current page: %d)\n", (int)currentPage);
     
     // 根據當前頁面執行不同的OK按鍵功能
@@ -125,7 +106,7 @@ void handleButtonEvents() {
         Serial.printf("OK button ignored (Page: %d)\n", (int)currentPage);
         break;
     }
-  } else if (menuEvent == BTN_EVENT_HOLD) {
+  } else if (menuEvent == BUTTON_EVENT_HOLD) {
     Serial.printf("Menu/OK button hold 2sec (Current page: %d)\n", (int)currentPage);
     
     // 任何頁面長按OK鍵2秒：返回MainMenu
@@ -139,8 +120,8 @@ void handleButtonEvents() {
   }
   
   // 檢查UP按鍵 (GPIO 33)
-  ButtonEvent upEvent = buttonManager->getButtonEvent(ButtonManager::BTN_UP_BACK);
-  if (upEvent == BTN_EVENT_PRESS) {
+  Button_Event_t upEvent = HAL::Button_GetEvent(HAL::BUTTON_UP_BACK);
+  if (upEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
       // MainMenu頁面：UP按鍵直接跳轉到 Trekking
       Serial.println("UP button pressed - MainMenu -> Trekking");
@@ -202,8 +183,8 @@ void handleButtonEvents() {
   }
   
   // 檢查DOWN按鍵 (GPIO 34)
-  ButtonEvent downEvent = buttonManager->getButtonEvent(ButtonManager::BTN_DOWN_FN);
-  if (downEvent == BTN_EVENT_PRESS) {
+  Button_Event_t downEvent = HAL::Button_GetEvent(HAL::BUTTON_DOWN_FN);
+  if (downEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
       // MainMenu頁面：DOWN按鍵直接跳轉到 System
       Serial.println("DOWN button pressed - MainMenu -> System");
@@ -262,10 +243,10 @@ void handleButtonEvents() {
       pageManager->switchToPage(prevPage);
       scrollMode = false; // 切換頁面時重置滾動模式
     }
-  } else if (downEvent == BTN_EVENT_HOLD) {
+  } else if (downEvent == BUTTON_EVENT_HOLD) {
     Serial.println("Down button hold - reserved function");
     // 長按：保留功能（可以分配給其他用途）
-  } else if (downEvent == BTN_EVENT_DOUBLE) {
+  } else if (downEvent == BUTTON_EVENT_DOUBLE) {
     Serial.println("Down button double click - function mode");
     // 雙擊：特殊功能模式 - 可以在這裡添加特定功能
     // 注意：不執行清屏操作，避免螢幕消失
@@ -278,36 +259,17 @@ void handleButtonEvents() {
 void setup() {
   Serial.begin(115200);
   delay(100);
+  
+  Serial.println("=== ESP32 OLED Application with HAL System ===");
 
-  // Initialize the OLED display
-  Serial.println("正在初始化 OLED 顯示器...");
-  Serial.println("I2C 配置: SDA=21, SCL=22, Address=0x3C");
+  // Initialize HAL System (handles all hardware)
+  HAL::HAL_Init();
+  delay(1000);
   
-  bool initResult = tft.init();
-  if (initResult) {
-    Serial.println("✅ LGFX 初始化成功");
-  } else {
-    Serial.println("❌ LGFX 初始化失敗 - 請檢查硬體連接");
-  }
-  
-  tft.setRotation(0); // OLED通常使用0度旋轉
-  tft.fillScreen(TFT_BLACK);
-  
-  // 測試顯示器是否工作
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(1);
-  tft.setCursor(0, 0);
-  tft.println("ESP32 OLED Test");
-  tft.println("SSD1306 128x64");
-  
-  Serial.printf("顯示器尺寸: %dx%d\n", tft.width(), tft.height());
-  Serial.println("SSD1306 128x64 OLED Display initialized");
-
-  // Initialize Button Manager
-  buttonManager = ButtonManager::getInstance();
-  buttonManager->init();
+  // DataProc initialization moved after LVGL init (requires lv_mem_alloc)
 
   // Initialize LVGL
+  Serial.println("Initializing LVGL...");
   lv_init();
   
   // 設定全域文字渲染優化
@@ -317,14 +279,14 @@ void setup() {
   lv_style_set_text_line_space(&global_style, 1);
   lv_style_set_text_letter_space(&global_style, 0);
 
-  // Initialize display buffer for 128x64 OLED
-  lv_disp_draw_buf_init(&draw_buf, buf, NULL, 128 * 8);
+  // Initialize display buffer using HAL configuration
+  lv_disp_draw_buf_init(&draw_buf, buf, NULL, LVGL_BUFFER_SIZE);
   
-  // Initialize display driver for OLED
+  // Initialize display driver using HAL
   static lv_disp_drv_t disp_drv;
   lv_disp_drv_init(&disp_drv);
-  disp_drv.hor_res = 128;  // OLED寬度
-  disp_drv.ver_res = 64;   // OLED高度
+  disp_drv.hor_res = DISPLAY_WIDTH;   // From HAL_Config.h
+  disp_drv.ver_res = DISPLAY_HEIGHT;  // From HAL_Config.h
   disp_drv.flush_cb = my_disp_flush;
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register(&disp_drv);
@@ -335,7 +297,18 @@ void setup() {
   lv_style_set_text_opa(&global_text_style, LV_OPA_COVER);
   lv_style_set_text_font(&global_text_style, &lv_font_unscii_8);
   
-  // 無觸控輸入設備 - OLED顯示器不需要觸控
+  Serial.println("LVGL initialized with HAL integration");
+
+  // Initialize DataProc System after LVGL (requires lv_mem_alloc)
+  Serial.println("Initializing DataProc System...");
+  Serial.print("Free heap before DataProc init: ");
+  Serial.println(ESP.getFreeHeap());
+  
+  DataProc_Init();
+  
+  Serial.print("Free heap after DataProc init: ");
+  Serial.println(ESP.getFreeHeap());
+  Serial.println("DataProc System initialized");
 
   // Initialize PageManager with MVP architecture
   pageManager = PageManager::getInstance();
@@ -346,29 +319,20 @@ void setup() {
   } else {
     Serial.println("Failed to initialize PageManager");
   }
+  
+  Serial.println("=== Setup Complete - HAL System Ready ===");
 }
 
 void loop() {
   // Handle LVGL tasks
   lv_timer_handler();
   
-  // Update button manager
-  if (buttonManager) {
-    buttonManager->update();
-    
-    // Handle button events
-    handleButtonEvents();
-  }
-  
-  // 自動頁面切換已禁用（原始為每30秒自動切換）。
-  // 如果需要重新啟用自動切換，可恢復原始邏輯或設置一個配置標誌。
-  // Serial.println("Auto page switching disabled");
+  // Handle button events using HAL
+  handleButtonEvents();
   
   // 更新狀態頁面系統信息（每2秒更新一次）
   static unsigned long lastStatusUpdate = 0;
-  const unsigned long STATUS_UPDATE_INTERVAL_MS = 2000UL; // 2秒
-  
-  if (millis() - lastStatusUpdate >= STATUS_UPDATE_INTERVAL_MS) {
+  if (millis() - lastStatusUpdate >= STATUS_UPDATE_INTERVAL) {
     lastStatusUpdate = millis();
     if (pageManager && pageManager->getStatusPresenter()) {
       // 如果當前在狀態頁面，則更新系統狀態
@@ -380,16 +344,14 @@ void loop() {
   
   // 更新所有頁面的時間和電池顯示（每5秒更新一次）
   static unsigned long lastTimeUpdate = 0;
-  const unsigned long TIME_UPDATE_INTERVAL_MS = 5000UL; // 5秒
-  
-  if (millis() - lastTimeUpdate >= TIME_UPDATE_INTERVAL_MS) {
+  if (millis() - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
     lastTimeUpdate = millis();
     if (pageManager) {
       PageID currentPage = pageManager->getCurrentPage();
       
-      // 獲取台灣時間和電池狀態
+      // 獲取台灣時間和電池狀態 (使用HAL)
       char timeStr[16], battStr[16];
-      getTaiwanTime(timeStr, battStr);
+      getTimeAndBattery(timeStr, battStr);
       
       switch (currentPage) {
         case PAGE_MAINMENU:

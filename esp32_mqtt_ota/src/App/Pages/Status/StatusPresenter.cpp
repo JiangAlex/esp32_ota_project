@@ -27,33 +27,13 @@ void StatusPresenter::onHide() {
 }
 
 void StatusPresenter::updateStatus() {
-    if (!view || !model) return;
+    if (!view) return;
     
-    // 更新模型數據
-    model->updateSystemInfo();
+    // 使用 StatusView 自己的傳感器數據更新方法
+    // 這會使用 DataProc 系統和 GY-80 傳感器數據
+    view->updateSystemStatus();
     
-    // 格式化狀態信息
-    char uptimeStr[32];
-    char memoryStr[32];
-    char gpioStr[64];
-    char statusText[200];
-    
-    model->getUptimeFormatted(uptimeStr, sizeof(uptimeStr));
-    model->getMemoryFormatted(memoryStr, sizeof(memoryStr));
-    model->getGpioStatusFormatted(gpioStr, sizeof(gpioStr));
-    
-    snprintf(statusText, sizeof(statusText),
-        "System: OK\n"
-        "Memory: %s\n"
-        "Uptime: %s\n"
-        "GPIO: %s",
-        memoryStr, uptimeStr, gpioStr
-    );
-    
-    // 更新視圖
-    view->updateStatus(statusText);
-    
-    Serial.printf("Status updated - %s, Memory: %s\n", uptimeStr, memoryStr);
+    Serial.println("Status updated using GY-80 sensor data via DataProc");
 }
 
 void StatusPresenter::scrollUp() {

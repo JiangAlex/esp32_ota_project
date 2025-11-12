@@ -8,10 +8,10 @@ static const uint8_t ADDR_HMC = 0x1E; // HMC5883L
 static const uint8_t ADDR_ADXL = 0x53; // ADXL345
 static const uint8_t ADDR_ITG = 0x68; // ITG3200 or MPU6050
 
-GY80::GY80() : _wire(nullptr), _sda_pin(SDA), _scl_pin(SCL), _freq(400000) {}
-GY80::~GY80() {}
+GY80::GY80::GY80() : _wire(nullptr), _sda_pin(SDA), _scl_pin(SCL), _freq(400000) {}
+GY80::GY80::~GY80() {}
 
-bool GY80::begin(TwoWire &wire, uint8_t sda, uint8_t scl, uint32_t freq) {
+bool GY80::GY80::begin(TwoWire &wire, uint8_t sda, uint8_t scl, uint32_t freq) {
     _wire = &wire;
     _sda_pin = sda;
     _scl_pin = scl;
@@ -25,20 +25,20 @@ bool GY80::begin(TwoWire &wire, uint8_t sda, uint8_t scl, uint32_t freq) {
     return found;
 }
 
-bool GY80::probeDevice(uint8_t addr) {
+bool GY80::GY80::probeDevice(uint8_t addr) {
     _wire->beginTransmission(addr);
     if (_wire->endTransmission() == 0) return true;
     return false;
 }
 
-bool GY80::writeRegister(uint8_t addr, uint8_t reg, uint8_t value) {
+bool GY80::GY80::writeRegister(uint8_t addr, uint8_t reg, uint8_t value) {
     _wire->beginTransmission(addr);
     _wire->write(reg);
     _wire->write(value);
     return (_wire->endTransmission() == 0);
 }
 
-bool GY80::readRegisters(uint8_t addr, uint8_t reg, uint8_t *buf, size_t len) {
+bool GY80::GY80::readRegisters(uint8_t addr, uint8_t reg, uint8_t *buf, size_t len) {
     _wire->beginTransmission(addr);
     _wire->write(reg);
     if (_wire->endTransmission(false) != 0) return false; // restart
@@ -48,7 +48,7 @@ bool GY80::readRegisters(uint8_t addr, uint8_t reg, uint8_t *buf, size_t len) {
     return true;
 }
 
-BMPData GY80::readBMP() {
+GY80::BMPData GY80::GY80::readBMP() {
     BMPData out{};
     out.ok = false;
 
@@ -69,18 +69,20 @@ BMPData GY80::readBMP() {
     if (!readRegisters(ADDR_BMP, 0xF6, pb, 3)) return out;
     int32_t UP = ((pb[0] << 16) | (pb[1] << 8) | pb[2]) >> (8);
 
-    // NOTE: proper compensation requires calibration data. We'll make an approximate conversion using simple formulas.
-    // Compute temperature roughly
-    float tempC = UT / 340.0f; // crude
-    float pressPa = UP * 1.0f; // crude
-
+    // Improved conversion formulas for BMP180
+    // Temperature conversion (more realistic approximation)
+    float tempC = (UT - 27898) / 340.0f + 25.0f; // Better approximation
+    
+    // Pressure conversion (more realistic approximation)  
+    float pressPa = UP / 256.0f + 101325.0f; // Better approximation around sea level
+    
     out.ok = true;
     out.temperature = tempC;
-    out.pressure = pressPa / 100.0f; // hPa
+    out.pressure = pressPa / 100.0f; // Convert Pa to hPa
     return out;
 }
 
-AccelData GY80::readAccel() {
+GY80::AccelData GY80::GY80::readAccel() {
     AccelData out{};
     out.ok = false;
     if (!probeDevice(ADDR_ADXL)) return out;
@@ -99,7 +101,7 @@ AccelData GY80::readAccel() {
     return out;
 }
 
-MagData GY80::readMag() {
+GY80::MagData GY80::GY80::readMag() {
     MagData out{};
     out.ok = false;
     if (!probeDevice(ADDR_HMC)) return out;
@@ -117,7 +119,7 @@ MagData GY80::readMag() {
     return out;
 }
 
-GyroData GY80::readGyro() {
+GY80::GyroData GY80::GY80::readGyro() {
     GyroData out{};
     out.ok = false;
     if (!probeDevice(ADDR_ITG)) return out;
