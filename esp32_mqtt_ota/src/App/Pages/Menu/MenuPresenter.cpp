@@ -28,8 +28,8 @@ void MenuPresenter::onHide() {
 
 void MenuPresenter::selectMenuItem(int index) {
     model->setSelectedIndex(index);
-    view->updateSelection(index);
-    Serial.printf("Menu item %d selected: %s\n", index, model->getSelectedItem().text);
+    view->updateSelection(index);  // This method exists in the updated MenuView
+    Serial.printf("Menu icon %d selected\n", index);
 }
 
 void MenuPresenter::executeSelectedItem() {

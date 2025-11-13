@@ -285,6 +285,10 @@ StatusPresenter* PageManager::getStatusPresenter() const {
     return statusPresenter;
 }
 
+MenuView* PageManager::getMenuView() const {
+    return menuView;
+}
+
 TrekkingView* PageManager::getTrekkingView() const {
     return trekkingView;
 }

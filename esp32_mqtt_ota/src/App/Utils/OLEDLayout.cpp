@@ -85,18 +85,7 @@ lv_obj_t* OLEDLayout::createStatusBar(lv_obj_t* parent) {
     lv_obj_set_style_border_width(statusBar, 0, 0);
     lv_obj_set_style_pad_all(statusBar, 1, 0);
     
-    // Create battery label (left side) - Same format as MainMenu
-    lv_obj_t* batteryLabel = lv_label_create(statusBar);
-    lv_label_set_text(batteryLabel, "Batt:85%");
-    lv_obj_set_style_text_font(batteryLabel, &lv_font_unscii_8, 0);
-    lv_obj_set_style_text_color(batteryLabel, lv_color_white(), 0);
-    lv_obj_set_style_text_opa(batteryLabel, LV_OPA_COVER, 0);
-    lv_obj_set_style_outline_width(batteryLabel, 0, 0);
-    lv_obj_set_style_border_width(batteryLabel, 0, 0);
-    lv_obj_set_style_bg_opa(batteryLabel, LV_OPA_TRANSP, 0);
-    lv_obj_align(batteryLabel, LV_ALIGN_LEFT_MID, 2, 0);
-    
-    // Create time label (right side) - Same format as MainMenu
+    // Create time label (left side) - show time on the LEFT per spec
     lv_obj_t* timeLabel = lv_label_create(statusBar);
     lv_label_set_text(timeLabel, "14:30");
     lv_obj_set_style_text_font(timeLabel, &lv_font_unscii_8, 0);
@@ -105,24 +94,91 @@ lv_obj_t* OLEDLayout::createStatusBar(lv_obj_t* parent) {
     lv_obj_set_style_outline_width(timeLabel, 0, 0);
     lv_obj_set_style_border_width(timeLabel, 0, 0);
     lv_obj_set_style_bg_opa(timeLabel, LV_OPA_TRANSP, 0);
-    lv_obj_align(timeLabel, LV_ALIGN_RIGHT_MID, -2, 0);
-    
-    Serial.println("Status bar created with battery and time");
+    lv_obj_align(timeLabel, LV_ALIGN_LEFT_MID, 2, 0);
+
+    // Create battery/power label (right side) - show percentage only
+    lv_obj_t* batteryLabel = lv_label_create(statusBar);
+    lv_label_set_text(batteryLabel, "85%");
+    lv_obj_set_style_text_font(batteryLabel, &lv_font_unscii_8, 0);
+    lv_obj_set_style_text_color(batteryLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_opa(batteryLabel, LV_OPA_COVER, 0);
+    lv_obj_set_style_outline_width(batteryLabel, 0, 0);
+    lv_obj_set_style_border_width(batteryLabel, 0, 0);
+    lv_obj_set_style_bg_opa(batteryLabel, LV_OPA_TRANSP, 0);
+    lv_obj_align(batteryLabel, LV_ALIGN_RIGHT_MID, -2, 0);
+
+    Serial.println("Status bar created with time (left) and battery (right)");
     return statusBar;
 }
 
 void OLEDLayout::updateStatusBar(lv_obj_t* statusBar, const char* batteryText, const char* timeText) {
     if (!statusBar) return;
-    
-    // Update battery label (first child object)
-    lv_obj_t* batteryLabel = lv_obj_get_child(statusBar, 0);
+
+    // Child 0 is timeLabel (left), Child 1 is batteryLabel (right)
+    lv_obj_t* timeLabel = lv_obj_get_child(statusBar, 0);
+    if (timeLabel && lv_obj_check_type(timeLabel, &lv_label_class)) {
+        lv_label_set_text(timeLabel, timeText);
+    }
+
+    lv_obj_t* batteryLabel = lv_obj_get_child(statusBar, 1);
     if (batteryLabel && lv_obj_check_type(batteryLabel, &lv_label_class)) {
         lv_label_set_text(batteryLabel, batteryText);
     }
+}
+
+// 新的三區域佈局方法
+
+// 創建中間主資訊區（38px）
+lv_obj_t* OLEDLayout::createMainContentArea(lv_obj_t* parent) {
+    lv_obj_t* contentArea = lv_obj_create(parent);
+    lv_obj_set_size(contentArea, OLED_WIDTH, OLED_MAIN_CONTENT_HEIGHT);
+    lv_obj_set_pos(contentArea, 0, OLED_MAIN_CONTENT_Y);
     
-    // Update time label (second child object)
-    lv_obj_t* timeLabel = lv_obj_get_child(statusBar, 1);
-    if (timeLabel && lv_obj_check_type(timeLabel, &lv_label_class)) {
-        lv_label_set_text(timeLabel, timeText);
+    // 設置背景樣式
+    lv_obj_set_style_bg_color(contentArea, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(contentArea, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(contentArea, 0, 0);
+    lv_obj_set_style_pad_all(contentArea, 2, 0);
+    
+    // 禁用滾動條
+    lv_obj_set_scrollbar_mode(contentArea, LV_SCROLLBAR_MODE_OFF);
+    
+    Serial.println("OLED Main Content Area created (38px)");
+    return contentArea;
+}
+
+// 創建底部功能提示區（10px）
+lv_obj_t* OLEDLayout::createHintBar(lv_obj_t* parent, const char* hintText) {
+    lv_obj_t* hintBar = lv_obj_create(parent);
+    lv_obj_set_size(hintBar, OLED_WIDTH, OLED_HINT_BAR_HEIGHT);
+    lv_obj_set_pos(hintBar, 0, OLED_HINT_BAR_Y);
+    
+    // 設置背景樣式
+    lv_obj_set_style_bg_color(hintBar, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(hintBar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(hintBar, 0, 0);
+    lv_obj_set_style_pad_all(hintBar, 1, 0);
+    lv_obj_set_scrollbar_mode(hintBar, LV_SCROLLBAR_MODE_OFF);
+    
+    // 創建提示標籤
+    lv_obj_t* hintLabel = lv_label_create(hintBar);
+    lv_label_set_text(hintLabel, hintText ? hintText : "SAT 11/30");
+    lv_obj_set_style_text_font(hintLabel, &lv_font_unscii_8, 0);
+    lv_obj_set_style_text_color(hintLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_align(hintLabel, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(hintLabel);
+    
+    Serial.printf("OLED Hint Bar created: %s\n", hintText);
+    return hintBar;
+}
+
+// 更新功能提示區
+void OLEDLayout::updateHintBar(lv_obj_t* hintBar, const char* hintText) {
+    if (!hintBar || !hintText) return;
+    
+    // 更新提示標籤（第一個子對象）
+    lv_obj_t* hintLabel = lv_obj_get_child(hintBar, 0);
+    if (hintLabel && lv_obj_check_type(hintLabel, &lv_label_class)) {
+        lv_label_set_text(hintLabel, hintText);
     }
 }

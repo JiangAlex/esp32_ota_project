@@ -83,7 +83,8 @@ public:
     // TrekkingPresenter* getTrekkingPresenter() const; // 暫時停用
     StatusPresenter* getStatusPresenter() const;
     
-    // 獲取 View 組件實例（用於滾動功能）
+    // 獲取 View 組件實例（用於滾動功能和圖標選擇）
+    MenuView* getMenuView() const;
     TrekkingView* getTrekkingView() const;
     WalkieTalkieView* getWalkieTalkieView() const;
     SystemView* getSystemView() const;

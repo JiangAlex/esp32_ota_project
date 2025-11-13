@@ -31,6 +31,7 @@
 #include "App/Pages/Status/StatusView.h"
 #include "App/Pages/Status/StatusPresenter.h"
 #include "App/Pages/Menu/MenuPresenter.h"
+#include "App/Pages/Menu/MenuView.h"
 #include "App/Pages/Trekking/TrekkingView.h"
 #include "App/Pages/WalkieTalkie/WalkieTalkieView.h"
 #include "App/Pages/System/SystemView.h"
@@ -56,7 +57,26 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 
 // Helper function for time and battery status using HAL
 void getTimeAndBattery(char* timeStr, char* battStr) {
-    HAL::Clock_GetTimeString(timeStr, battStr);
+    char rawBattStr[16];
+    HAL::Clock_GetTimeString(timeStr, rawBattStr);
+    
+    // 只顯示百分比，移除 "Batt" 和其他前綴
+    // 假設 rawBattStr 可能是 "Batt:85%" 或 "85%" 格式
+    const char* percentPos = strstr(rawBattStr, "%");
+    if (percentPos) {
+        // 找到百分比符號，向前查找數字
+        const char* numStart = rawBattStr;
+        while (*numStart && !isdigit(*numStart)) {
+            numStart++;
+        }
+        if (*numStart) {
+            snprintf(battStr, 16, "%s", numStart);
+        } else {
+            strcpy(battStr, "85%");  // 預設值
+        }
+    } else {
+        strcpy(battStr, "85%");  // 預設值
+    }
 }
 
 // 按鍵事件處理函數 (使用HAL系統)
@@ -74,20 +94,42 @@ void handleButtonEvents() {
     // 根據當前頁面執行不同的OK按鍵功能
     switch (currentPage) {
       case PAGE_MAINMENU:
-        Serial.println("MainMenu: OK button - No action");
-        // 在 MainMenu 頁面，OK 按鍵無作用
+        Serial.println("MainMenu: OK button - Confirm icon selection");
+        if (pageManager->getMenuView()) {
+          MenuIcon selectedIcon = pageManager->getMenuView()->getSelectedIcon();
+          switch (selectedIcon) {
+            case MenuIcon::TREKKING:
+              Serial.println("Selected: Trekking");
+              pageManager->switchToPage(PAGE_TREKKING);
+              break;
+            case MenuIcon::RADIO:
+              Serial.println("Selected: Radio (WalkieTalkie)");
+              pageManager->switchToPage(PAGE_WALKIETALKIE);
+              break;
+            case MenuIcon::SYSTEM:
+              Serial.println("Selected: System");
+              pageManager->switchToPage(PAGE_SYSTEM);
+              break;
+            case MenuIcon::STATUS:
+              Serial.println("Selected: Status");
+              pageManager->switchToPage(PAGE_STATUS);
+              break;
+          }
+        }
         break;
         
       case PAGE_TREKKING:
-        Serial.println("Trekking: OK button - Toggle scroll mode");
-        scrollMode = !scrollMode;
-        Serial.printf("Scroll mode: %s\n", scrollMode ? "ON" : "OFF");
+        Serial.println("Trekking: OK button - Handle trekking action");
+        if (pageManager->getTrekkingView()) {
+          pageManager->getTrekkingView()->handleOKButton();
+        }
         break;
         
       case PAGE_WALKIETALKIE:
-        Serial.println("WalkieTalkie: OK button - Toggle scroll mode");
-        scrollMode = !scrollMode;
-        Serial.printf("Scroll mode: %s\n", scrollMode ? "ON" : "OFF");
+        Serial.println("WalkieTalkie: OK button - Handle operation mode");
+        if (pageManager->getWalkieTalkieView()) {
+          pageManager->getWalkieTalkieView()->handleOKButton();
+        }
         break;
         
       case PAGE_STATUS:
@@ -97,9 +139,10 @@ void handleButtonEvents() {
         break;
         
       case PAGE_SYSTEM:
-        Serial.println("System: OK button - Toggle scroll mode");
-        scrollMode = !scrollMode;
-        Serial.printf("Scroll mode: %s\n", scrollMode ? "ON" : "OFF");
+        Serial.println("System: OK button - Confirm selection");
+        if (pageManager->getSystemView()) {
+          pageManager->getSystemView()->confirmSelection();
+        }
         break;
         
       default:
@@ -123,21 +166,23 @@ void handleButtonEvents() {
   Button_Event_t upEvent = HAL::Button_GetEvent(HAL::BUTTON_UP_BACK);
   if (upEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
-      // MainMenu頁面：UP按鍵直接跳轉到 Trekking
-      Serial.println("UP button pressed - MainMenu -> Trekking");
-      pageManager->switchToPage(PAGE_TREKKING);
+      // MainMenu頁面：UP按鍵選擇上一個圖標
+      Serial.println("UP button pressed - MainMenu select previous icon");
+      if (pageManager->getMenuView()) {
+        pageManager->getMenuView()->selectPrevIcon();
+      }
     } else if (scrollMode) {
       // 滾動模式：UP按鍵用於螢幕向上滾動
       Serial.println("UP button pressed - Screen scroll up");
       switch (currentPage) {
         case PAGE_TREKKING:
           if (pageManager->getTrekkingView()) {
-            pageManager->getTrekkingView()->scrollUp();
+            pageManager->getTrekkingView()->handleUpButton();
           }
           break;
         case PAGE_WALKIETALKIE:
           if (pageManager->getWalkieTalkieView()) {
-            pageManager->getWalkieTalkieView()->scrollUp();
+            pageManager->getWalkieTalkieView()->handleUpButton();
           }
           break;
         case PAGE_STATUS:
@@ -147,38 +192,42 @@ void handleButtonEvents() {
           break;
         case PAGE_SYSTEM:
           if (pageManager->getSystemView()) {
-            pageManager->getSystemView()->scrollUp();
+            pageManager->getSystemView()->selectPrevItem();
           }
           break;
         default:
           break;
       }
     } else {
-      // 非滾動模式：UP按鍵用於頁面切換
-      PageID nextPage;
-      switch (currentPage) {
-        case PAGE_TREKKING:
-          nextPage = PAGE_WALKIETALKIE;
-          Serial.println("UP button pressed - Trekking -> WalkieTalkie");
-          break;
-        case PAGE_WALKIETALKIE:
-          nextPage = PAGE_STATUS;
-          Serial.println("UP button pressed - WalkieTalkie -> Status");
-          break;
-        case PAGE_STATUS:
-          nextPage = PAGE_SYSTEM;
-          Serial.println("UP button pressed - Status -> System");
-          break;
-        case PAGE_SYSTEM:
-          nextPage = PAGE_MAINMENU;
-          Serial.println("UP button pressed - System -> MainMenu");
-          break;
-        default:
-          nextPage = PAGE_MAINMENU;
-          break;
+      // 非滾動模式：UP按鍵用於頁面切換 (除了 WalkieTalkie)
+      if (currentPage == PAGE_WALKIETALKIE) {
+        // WalkieTalkie 頁面：UP 按鍵總是用於頁面內操作
+        Serial.println("UP button pressed - WalkieTalkie internal operation");
+        if (pageManager->getWalkieTalkieView()) {
+          pageManager->getWalkieTalkieView()->handleUpButton();
+        }
+      } else {
+        PageID nextPage;
+        switch (currentPage) {
+          case PAGE_TREKKING:
+            nextPage = PAGE_WALKIETALKIE;
+            Serial.println("UP button pressed - Trekking -> WalkieTalkie");
+            break;
+          case PAGE_STATUS:
+            nextPage = PAGE_SYSTEM;
+            Serial.println("UP button pressed - Status -> System");
+            break;
+          case PAGE_SYSTEM:
+            nextPage = PAGE_MAINMENU;
+            Serial.println("UP button pressed - System -> MainMenu");
+            break;
+          default:
+            nextPage = PAGE_MAINMENU;
+            break;
+        }
+        pageManager->switchToPage(nextPage);
+        scrollMode = false; // 切換頁面時重置滾動模式
       }
-      pageManager->switchToPage(nextPage);
-      scrollMode = false; // 切換頁面時重置滾動模式
     }
   }
   
@@ -186,21 +235,23 @@ void handleButtonEvents() {
   Button_Event_t downEvent = HAL::Button_GetEvent(HAL::BUTTON_DOWN_FN);
   if (downEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
-      // MainMenu頁面：DOWN按鍵直接跳轉到 System
-      Serial.println("DOWN button pressed - MainMenu -> System");
-      pageManager->switchToPage(PAGE_SYSTEM);
+      // MainMenu頁面：DOWN按鍵選擇下一個圖標
+      Serial.println("DOWN button pressed - MainMenu select next icon");
+      if (pageManager->getMenuView()) {
+        pageManager->getMenuView()->selectNextIcon();
+      }
     } else if (scrollMode) {
       // 滾動模式：DOWN按鍵用於螢幕向下滾動
       Serial.println("DOWN button pressed - Screen scroll down");
       switch (currentPage) {
         case PAGE_TREKKING:
           if (pageManager->getTrekkingView()) {
-            pageManager->getTrekkingView()->scrollDown();
+            pageManager->getTrekkingView()->handleDownButton();
           }
           break;
         case PAGE_WALKIETALKIE:
           if (pageManager->getWalkieTalkieView()) {
-            pageManager->getWalkieTalkieView()->scrollDown();
+            pageManager->getWalkieTalkieView()->handleDownButton();
           }
           break;
         case PAGE_STATUS:
@@ -210,42 +261,52 @@ void handleButtonEvents() {
           break;
         case PAGE_SYSTEM:
           if (pageManager->getSystemView()) {
-            pageManager->getSystemView()->scrollDown();
+            pageManager->getSystemView()->selectNextItem();
           }
           break;
         default:
           break;
       }
     } else {
-      // 非滾動模式：DOWN按鍵用於頁面切換
-      PageID prevPage;
-      switch (currentPage) {
-        case PAGE_TREKKING:
-          prevPage = PAGE_MAINMENU;
-          Serial.println("DOWN button pressed - Trekking -> MainMenu");
-          break;
-        case PAGE_WALKIETALKIE:
-          prevPage = PAGE_TREKKING;
-          Serial.println("DOWN button pressed - WalkieTalkie -> Trekking");
-          break;
-        case PAGE_STATUS:
-          prevPage = PAGE_WALKIETALKIE;
-          Serial.println("DOWN button pressed - Status -> WalkieTalkie");
-          break;
-        case PAGE_SYSTEM:
-          prevPage = PAGE_STATUS;
-          Serial.println("DOWN button pressed - System -> Status");
-          break;
-        default:
-          prevPage = PAGE_MAINMENU;
-          break;
+      // 非滾動模式：DOWN按鍵用於頁面切換 (除了 WalkieTalkie)
+      if (currentPage == PAGE_WALKIETALKIE) {
+        // WalkieTalkie 頁面：DOWN 按鍵總是用於頁面內操作
+        Serial.println("DOWN button pressed - WalkieTalkie internal operation");
+        if (pageManager->getWalkieTalkieView()) {
+          pageManager->getWalkieTalkieView()->handleDownButton();
+        }
+      } else {
+        PageID prevPage;
+        switch (currentPage) {
+          case PAGE_TREKKING:
+            prevPage = PAGE_MAINMENU;
+            Serial.println("DOWN button pressed - Trekking -> MainMenu");
+            break;
+          case PAGE_STATUS:
+            prevPage = PAGE_WALKIETALKIE;
+            Serial.println("DOWN button pressed - Status -> WalkieTalkie");
+            break;
+          case PAGE_SYSTEM:
+            prevPage = PAGE_STATUS;
+            Serial.println("DOWN button pressed - System -> Status");
+            break;
+          default:
+            prevPage = PAGE_MAINMENU;
+            break;
+        }
+        pageManager->switchToPage(prevPage);
+        scrollMode = false; // 切換頁面時重置滾動模式
       }
-      pageManager->switchToPage(prevPage);
-      scrollMode = false; // 切換頁面時重置滾動模式
     }
   } else if (downEvent == BUTTON_EVENT_HOLD) {
-    Serial.println("Down button hold - reserved function");
-    // 長按：保留功能（可以分配給其他用途）
+    if (currentPage == PAGE_WALKIETALKIE) {
+      Serial.println("WalkieTalkie: Down button hold - Return to MainMenu");
+      pageManager->switchToPage(PAGE_MAINMENU);
+      scrollMode = false;
+    } else {
+      Serial.println("Down button hold - reserved function");
+      // 長按：保留功能（可以分配給其他用途）
+    }
   } else if (downEvent == BUTTON_EVENT_DOUBLE) {
     Serial.println("Down button double click - function mode");
     // 雙擊：特殊功能模式 - 可以在這裡添加特定功能
@@ -363,12 +424,60 @@ void loop() {
         case PAGE_TREKKING:
           if (pageManager->getTrekkingView()) {
             pageManager->getTrekkingView()->updateStatusBar(battStr, timeStr);
+            
+            // 模擬環境數據更新（實際應用中這些數據來自感測器）
+            static unsigned long lastTrekkingUpdate = 0;
+            if (millis() - lastTrekkingUpdate > 1000) {  // 每秒更新一次
+              // 模擬溫度變化 (24-27°C)
+              float temp = 25.5 + sin(millis() / 10000.0) * 1.5;
+              // 模擬海拔變化 (500-550m)
+              float alt = 520 + sin(millis() / 8000.0) * 30;
+              // 模擬氣壓變化 (1010-1015 hPa)
+              float press = 1012 + sin(millis() / 12000.0) * 3;
+              
+              pageManager->getTrekkingView()->updateEnvironmentData(temp, alt, press);
+              
+              // 如果在 RUNNING 狀態，更新累計數據
+              if (pageManager->getTrekkingView()->getState() == TrekkingState::RUNNING) {
+                unsigned long elapsedSec = (millis() / 1000) % 3600; // 模擬1小時內的時間
+                float distance = elapsedSec * 0.001f; // 模擬距離增長
+                float ascent = elapsedSec * 0.2f; // 模擬爬升
+                int steps = elapsedSec * 2; // 模擬步數
+                
+                pageManager->getTrekkingView()->updateCumulativeData(elapsedSec, distance, ascent, steps);
+              }
+              
+              lastTrekkingUpdate = millis();
+            }
           }
           break;
           
         case PAGE_WALKIETALKIE:
           if (pageManager->getWalkieTalkieView()) {
             pageManager->getWalkieTalkieView()->updateStatusBar(battStr, timeStr);
+            
+            // 模擬無線電 RSSI 數據更新
+            static unsigned long lastRadioUpdate = 0;
+            if (millis() - lastRadioUpdate > 2000) {  // 每2秒更新一次
+              RadioStatus currentStatus = pageManager->getWalkieTalkieView()->getRadioStatus();
+              
+              // 模擬 RSSI 變化 (-90dBm 到 -70dBm)
+              currentStatus.rssi = -85 + (int)(sin(millis() / 5000.0) * 10);
+              
+              // 模擬 RX/TX 狀態變化
+              static int rxTxCounter = 0;
+              if (rxTxCounter % 10 == 0) {
+                currentStatus.rxTxMode = "TX";
+              } else if (rxTxCounter % 10 == 1) {
+                currentStatus.rxTxMode = "RX";
+              } else {
+                currentStatus.rxTxMode = "RX";
+              }
+              rxTxCounter++;
+              
+              pageManager->getWalkieTalkieView()->updateRadioStatus(currentStatus);
+              lastRadioUpdate = millis();
+            }
           }
           break;
           

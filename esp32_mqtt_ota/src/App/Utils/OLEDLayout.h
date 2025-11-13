@@ -3,35 +3,50 @@
 
 #include <lvgl.h>
 
-// OLED 128x64 布局常數
+// OLED 128x64 三區域佈局常數
 #define OLED_WIDTH 128
 #define OLED_HEIGHT 64
-#define OLED_TOP_HEIGHT 18    // 上半部標題區域（單色 OLED）
-#define OLED_BOTTOM_HEIGHT 46   // 下半部內容區域（單色 OLED）
+
+// 三區域高度定義
+#define OLED_STATUS_BAR_HEIGHT 16    // 頂部狀態欄：電池 + 時間
+#define OLED_MAIN_CONTENT_HEIGHT 38  // 中間主資訊區：內容切換
+#define OLED_HINT_BAR_HEIGHT 10      // 底部功能提示區：操作提示
+
+// 位置定義
+#define OLED_STATUS_BAR_Y 0
+#define OLED_MAIN_CONTENT_Y 16
+#define OLED_HINT_BAR_Y 54
 
 // 保持向下兼容的宏定義
-#define OLED_TOP_YELLOW_HEIGHT OLED_TOP_HEIGHT
-#define OLED_BOTTOM_BLUE_HEIGHT OLED_BOTTOM_HEIGHT
+#define OLED_TOP_HEIGHT OLED_STATUS_BAR_HEIGHT
+#define OLED_BOTTOM_HEIGHT OLED_MAIN_CONTENT_HEIGHT
+#define OLED_TOP_YELLOW_HEIGHT OLED_STATUS_BAR_HEIGHT
+#define OLED_BOTTOM_BLUE_HEIGHT OLED_MAIN_CONTENT_HEIGHT
 
 class OLEDLayout {
 public:
-    // 創建通用的頂部標題欄（單色 OLED 上區域 18px）
-    static lv_obj_t* createTopBar(lv_obj_t* parent, const char* title);
+    // 三區域佈局創建方法
     
-    // 創建底部內容區域（單色 OLED 下區域 46px）
-    static lv_obj_t* createContentArea(lv_obj_t* parent);
-    
-    // 更新頂部標題文字
-    static void updateTopBarTitle(lv_obj_t* topBar, const char* newTitle);
-    
-    // 設置OLED優化的字體和樣式
-    static void applyOLEDStyle(lv_obj_t* obj);
-    
-    // 創建統一的狀態欄 (電池 + 時間)
+    // 1. 創建頂部狀態欄（16px）：電池電量 + 時間
     static lv_obj_t* createStatusBar(lv_obj_t* parent);
     
-    // 更新狀態欄信息
+    // 2. 創建中間主資訊區（38px）：內容切換區域
+    static lv_obj_t* createMainContentArea(lv_obj_t* parent);
+    
+    // 3. 創建底部功能提示區（10px）：操作提示
+    static lv_obj_t* createHintBar(lv_obj_t* parent, const char* hintText);
+    
+    // 狀態欄更新方法
     static void updateStatusBar(lv_obj_t* statusBar, const char* batteryText, const char* timeText);
+    
+    // 功能提示區更新方法
+    static void updateHintBar(lv_obj_t* hintBar, const char* hintText);
+    
+    // 向下兼容方法
+    static lv_obj_t* createTopBar(lv_obj_t* parent, const char* title);
+    static lv_obj_t* createContentArea(lv_obj_t* parent);
+    static void updateTopBarTitle(lv_obj_t* topBar, const char* newTitle);
+    static void applyOLEDStyle(lv_obj_t* obj);
 };
 
 #endif // OLED_LAYOUT_H

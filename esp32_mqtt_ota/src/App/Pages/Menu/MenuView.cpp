@@ -6,10 +6,11 @@
 #include <time.h>
 #include <sys/time.h>
 
-MenuView::MenuView(MenuModel* m) : model(m), screen(nullptr), created(false), title(nullptr), 
-    menuArea(nullptr), batteryLabel(nullptr), timeLabel(nullptr), dateLabel(nullptr) {
+MenuView::MenuView(MenuModel* m) : model(m), screen(nullptr), created(false), 
+    statusBar(nullptr), iconContainer(nullptr), iconHighlight(nullptr), 
+    hintArea(nullptr), selectedIcon(0) {
     for(int i = 0; i < 4; i++) {
-        buttons[i] = nullptr;
+        iconLabels[i] = nullptr;
     }
 }
 
@@ -30,10 +31,10 @@ void MenuView::create() {
     // 初始化RTC
     initRTC();
     
-    // 創建MainMenu界面結構
-    createMainMenuLayout();
+    // 創建圖標式MainMenu界面
+    createIconMenuLayout();
     created = true;
-    Serial.println("Menu View created");
+    Serial.println("Menu View (Icon Mode) created");
 }
 
 void MenuView::destroy() {
@@ -43,13 +44,12 @@ void MenuView::destroy() {
         lv_obj_del(screen);
         screen = nullptr;
     }
-    title = nullptr;
-    menuArea = nullptr;
-    batteryLabel = nullptr;
-    timeLabel = nullptr;
-    dateLabel = nullptr;
+    statusBar = nullptr;
+    iconContainer = nullptr;
+    iconHighlight = nullptr;
+    hintArea = nullptr;
     for(int i = 0; i < 4; i++) {
-        buttons[i] = nullptr;
+        iconLabels[i] = nullptr;
     }
     created = false;
     Serial.println("MainMenu View destroyed");
@@ -64,106 +64,55 @@ bool MenuView::isCreated() const {
 }
 
 void MenuView::updateSelection(int index) {
-    // MainMenu 不再有選擇功能，此方法保留但不執行任何操作
-    if (!created) return;
-    Serial.println("MainMenu updateSelection - no action needed");
+    // 更新選中的圖標
+    if (!created || index < 0 || index >= 4) return;
+    selectedIcon = index;
+    updateIconHighlight();
+    Serial.printf("MainMenu updateSelection: %d\n", index);
 }
 
-void MenuView::createMainMenuLayout() {
-    // 電池容量顯示區域 (頂部 16px)
-    lv_obj_t* batteryArea = lv_obj_create(screen);
-    lv_obj_set_size(batteryArea, 128, 16);
-    lv_obj_set_pos(batteryArea, 0, 0);
-    lv_obj_set_style_bg_color(batteryArea, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(batteryArea, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(batteryArea, 0, 0);
-    lv_obj_set_style_pad_all(batteryArea, 2, 0);
-    lv_obj_set_scrollbar_mode(batteryArea, LV_SCROLLBAR_MODE_OFF);
+void MenuView::createIconMenuLayout() {
+    // 1. 創建頂部狀態欄（16px）：電池 + 時間
+    statusBar = OLEDLayout::createStatusBar(screen);
     
-    batteryLabel = lv_label_create(batteryArea);
-    lv_label_set_text(batteryLabel, "Batt: 85%");
-    lv_obj_set_style_text_font(batteryLabel, &lv_font_unscii_8, 0);
-    lv_obj_set_style_text_color(batteryLabel, lv_color_white(), 0);
-    lv_obj_set_style_text_align(batteryLabel, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(batteryLabel);
+    // 2. 創建中間主資訊區（38px）：圖標選單
+    iconContainer = OLEDLayout::createMainContentArea(screen);
     
-            // 主要時鐘顯示區域 (中間 28px)
-    lv_obj_t* timeArea = lv_obj_create(screen);
-    lv_obj_set_size(timeArea, 128, 28);
-    lv_obj_set_pos(timeArea, 0, 16);
-    lv_obj_set_style_bg_color(timeArea, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(timeArea, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(timeArea, 0, 0);
-    lv_obj_set_style_pad_all(timeArea, 2, 0);
-    lv_obj_set_scrollbar_mode(timeArea, LV_SCROLLBAR_MODE_OFF);
+    // 創建 2x2 圖標按鈕（適應38px高度）
+    // 第一行
+    createIconButton(0, 0, 0, "Trk", "Trekking");  // ⛰️ 替代符號
+    createIconButton(1, 0, 1, "Rad", "Radio");     // 🎙️ 替代符號
     
-    timeLabel = lv_label_create(timeArea);
-    if (timeLabel) {
-        lv_label_set_text(timeLabel, "AM 11:59");
-        lv_obj_set_style_text_font(timeLabel, &lv_font_unscii_16, 0);
-        lv_obj_set_style_text_color(timeLabel, lv_color_white(), 0);
-        lv_obj_set_style_text_align(timeLabel, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(timeLabel);
-    }
+    // 第二行
+    createIconButton(2, 1, 0, "Sys", "System");    // ⚙️ 替代符號
+    createIconButton(3, 1, 1, "Sta", "Status");    // 📶 替代符號
     
-    // 日期顯示區域 (底部 10px)
-    lv_obj_t* dateArea = lv_obj_create(screen);
-    lv_obj_set_size(dateArea, 128, 10);
-    lv_obj_set_pos(dateArea, 0, 44);
-    lv_obj_set_style_bg_color(dateArea, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(dateArea, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(dateArea, 0, 0);
-    lv_obj_set_style_pad_all(dateArea, 1, 0);
-    lv_obj_set_scrollbar_mode(dateArea, LV_SCROLLBAR_MODE_OFF);
+    // 創建選中高亮框
+    iconHighlight = lv_obj_create(iconContainer);
+    lv_obj_set_size(iconHighlight, 30, 17);  // 適應新高度
+    lv_obj_set_style_bg_opa(iconHighlight, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_color(iconHighlight, lv_color_white(), 0);
+    lv_obj_set_style_border_width(iconHighlight, 1, 0);
+    lv_obj_set_scrollbar_mode(iconHighlight, LV_SCROLLBAR_MODE_OFF);
     
-    dateLabel = lv_label_create(dateArea);
-    lv_obj_set_style_text_font(dateLabel, &lv_font_unscii_8, 0);
-    lv_obj_set_style_text_color(dateLabel, lv_color_white(), 0);
-    lv_obj_set_style_text_align(dateLabel, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(dateLabel);
+    // 3. 創建底部功能提示區（10px）：操作提示
+    hintArea = OLEDLayout::createHintBar(screen, "[UP/DN] Option [OK] Confirm");
     
-    // 更新時間和日期
-    updateTimeAndDate();
+    // 設置初始選中項目並更新高亮
+    selectedIcon = 0;
+    updateIconHighlight();
 }
 
 void MenuView::updateTimeAndDate() {
-    char timeStr[16];
-    char dateStr[16];
-    
-    // 獲取真實時間
-    getRealTime(timeStr, dateStr);
-    
-    // 更新時間顯示
-    if (timeLabel) {
-        lv_label_set_text(timeLabel, timeStr);
-    }
-    
-    // 更新日期顯示
-    if (dateLabel) {
-        lv_label_set_text(dateLabel, dateStr);
-    }
+    // 新的圖標式界面使用統一的狀態欄來顯示時間
+    // 這個方法現在主要用於 main.cpp 中的定期更新調用
+    // 實際的時間顯示通過 updateStatusBar() 方法處理
 }
 
 void MenuView::updateBatteryLevel() {
-    if (!batteryLabel) return;
-    
-    // 讀取電池電壓 (ESP32 ADC)
-    // 這裡使用模擬值，實際需要根據硬體連接讀取ADC
-    uint32_t voltage = 3700 + (millis() % 500); // 模擬電壓變化 3700-4200mV
-    int percentage = map(voltage, 3200, 4200, 0, 100);
-    percentage = constrain(percentage, 0, 100);
-    
-    char battStr[16];
-    // Use simpler display format in English
-    if (percentage >= 95) {
-        snprintf(battStr, sizeof(battStr), "Batt:Full");
-    } else if (percentage >= 20) {
-        snprintf(battStr, sizeof(battStr), "Batt:%d%%", percentage);
-    } else {
-        snprintf(battStr, sizeof(battStr), "Batt:Low");
-    }
-    
-    lv_label_set_text(batteryLabel, battStr);
+    // 新的圖標式界面使用統一的狀態欄來顯示電池狀態
+    // 這個方法現在主要用於 main.cpp 中的定期更新調用
+    // 實際的電池顯示通過 updateStatusBar() 方法處理
 }
 
 void MenuView::initRTC() {
@@ -217,7 +166,71 @@ void MenuView::getRealTime(char* timeStr, char* dateStr) {
     Serial.printf("Taiwan Time: %s, Date: %s\n", timeStr, dateStr);
 }
 
-void MenuView::button_event_cb(lv_event_t* e) {
-    // MainMenu 不再有可點擊的按鈕，此函數保留但不執行任何操作
-    Serial.println("MainMenu button event - no action");
+// button_event_cb method removed - no longer needed for icon-based menu
+
+// 創建單個圖標按鈕（適應38px高度的主資訊區）
+void MenuView::createIconButton(int index, int row, int col, const char* iconText, const char* labelText) {
+    if (index >= 4) return;
+    
+    // 計算位置 (2x2 網格，適應38px高度，每個格子約 32x17)
+    int x = col * 32 + 2;
+    int y = row * 17 + 2;  // 調整為17px高度以適應38px總高度
+    
+    // 創建圖標標籤
+    iconLabels[index] = lv_label_create(iconContainer);
+    lv_obj_set_size(iconLabels[index], 28, 15);  // 增加高度到15px
+    lv_obj_set_pos(iconLabels[index], x, y);
+    
+    // 設置圖標文字（由於不能顯示emoji，使用縮寫）
+    lv_label_set_text_fmt(iconLabels[index], "%s\n%s", iconText, labelText);
+    lv_obj_set_style_text_font(iconLabels[index], &lv_font_unscii_8, 0);
+    lv_obj_set_style_text_color(iconLabels[index], lv_color_white(), 0);
+    lv_obj_set_style_text_align(iconLabels[index], LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_bg_opa(iconLabels[index], LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(iconLabels[index], 0, 0);
+}
+
+// 圖標選擇方法
+void MenuView::selectNextIcon() {
+    selectedIcon = (selectedIcon + 1) % 4;
+    updateIconHighlight();
+    Serial.printf("Selected icon: %d\n", selectedIcon);
+}
+
+void MenuView::selectPrevIcon() {
+    selectedIcon = (selectedIcon - 1 + 4) % 4;
+    updateIconHighlight();
+    Serial.printf("Selected icon: %d\n", selectedIcon);
+}
+
+void MenuView::confirmSelection() {
+    MenuIcon selected = getSelectedIcon();
+    Serial.printf("Confirmed selection: %d\n", static_cast<int>(selected));
+    
+    // 這裡將在 main.cpp 中處理頁面切換
+    // 不在 View 層直接處理頁面邏輯
+}
+
+// 更新選中高亮框位置
+void MenuView::updateIconHighlight() {
+    if (!iconHighlight) return;
+    
+    int x, y;
+    getIconPosition(selectedIcon, &x, &y);
+    lv_obj_set_pos(iconHighlight, x, y);
+}
+
+// 計算圖標位置（適應38px高度）
+void MenuView::getIconPosition(int index, int* x, int* y) {
+    int row = index / 2;
+    int col = index % 2;
+    *x = col * 32 + 1;  // 32px 寬度，1px 偏移
+    *y = row * 17 + 1;  // 17px 高度，1px 偏移（適應38px總高度）
+}
+
+// 狀態欄更新方法
+void MenuView::updateStatusBar(const char* batteryText, const char* timeText) {
+    if (statusBar) {
+        OLEDLayout::updateStatusBar(statusBar, batteryText, timeText);
+    }
 }
