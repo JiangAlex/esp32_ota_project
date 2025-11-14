@@ -179,6 +179,17 @@ namespace HAL
     void SA818_Init();
     void SA818_scan();
     void SA818_GetInfo(::SA818_Info_t* info);
+    
+    /* SA818 Control Pins */
+    void SA818_SetPowerDown(bool powerDown);    // Control PD pin
+    void SA818_SetHighLowPower(bool highPower); // Control H/L pin
+    bool SA818_GetPowerDown();                  // Read PD pin state
+    bool SA818_GetHighLowPower();               // Read H/L pin state
+    
+    /* PTT (Push To Talk) */
+    void PTT_Init();
+    bool PTT_IsPressed();
+    void PTT_SetTransmit(bool enable);
 }
 
 /* External utility functions for integration */

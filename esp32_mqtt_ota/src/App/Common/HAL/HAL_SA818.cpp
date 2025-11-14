@@ -4,15 +4,17 @@
 #include "DRA818.h" // uncomment the following line in DRA818.h (#define DRA818_DEBUG)
 
 /* Used Pins */
-//#define SA818_BAUD 115200
-int SERIAL_SPEED = 9600;  // 預設波特率，可以動態修改
-#define SERIAL_SPEED_ALT    115200  // 備用波特率
+#define SA818_BAUD          9600    // 固定 SA818 波特率為 9600
+const int SERIAL_SPEED = 9600;     // 固定波特率，不可動態修改
 #define DRA818_CONFIG_UHF 1
-#define SA_PD      -1  // to the DRA818 PD pin 6
 
-// SA818 引腳配置 (ADC2_CHANNEL_3 已在 Mic_Class.cpp 中禁用)
-#define SA_RX GPIO_NUM_15   // arduino serial RX pin to the DRA818 TX pin 17
-#define SA_TX GPIO_NUM_16   // arduino serial TX pin to the DRA818 RX pin 16
+// SA818 引腳配置 - ESP32 UART2 連接到 SA818
+// ESP32 RX2 -> SA818 pin 17 (SA818 TX)
+// ESP32 TX2 -> SA818 pin 16 (SA818 RX)
+// 引腳定義已在 HAL_Config.h 中設定
+
+#define SA_RX SA818_RX_PIN   // 使用 HAL_Config.h 中的定義
+#define SA_TX SA818_TX_PIN   // 使用 HAL_Config.h 中的定義
 
 // 備用引腳配置（如果上面的引腳有衝突）
 #define SA_RX_ALT GPIO_NUM_18   
@@ -25,14 +27,29 @@ HardwareSerial dra_serial(2);
 DRA818 *dra;                // the DRA object once instanciated
 float freq;                 // the next frequency to scan
 
+// PTT (Push To Talk) 變數
+static bool ptt_initialized = false;
+static bool ptt_state = false;         // 當前 PTT 狀態
+static bool prev_ptt_state = false;    // 前一次 PTT 狀態
+
 void HAL::SA818_Init()
 {
     //Serial.begin(115200); // for logging
-    Serial.println("Booting ...");
+    Serial.println("SA818_Init: Starting SA818 module initialization...");
     Serial.print("initializing I/O ... \r\n");
     
+    // 初始化 SA818 控制引腳
+    pinMode(SA818_PD_PIN, OUTPUT);
+    pinMode(SA818_HL_PIN, OUTPUT);
+    
+    // 設定初始狀態
+    digitalWrite(SA818_PD_PIN, HIGH);  // PD=HIGH: 正常工作模式 (不是 Power Down)
+    digitalWrite(SA818_HL_PIN, LOW);   // H/L=LOW: 低功率模式 (0.5W)
+    
     // 檢查引腳配置
-    Serial.printf("SA818 Pins - RX: %d, TX: %d (ADC2_CHANNEL_3 disabled for SA818)\n", SA_RX, SA_TX);
+    Serial.printf("SA818 UART: ESP32 RX2(GPIO%d) -> SA818 pin17(TX), ESP32 TX2(GPIO%d) -> SA818 pin16(RX)\n", SA818_RX_PIN, SA818_TX_PIN);
+    Serial.printf("SA818 Control: PD(GPIO%d)=HIGH, H/L(GPIO%d)=LOW\n", SA818_PD_PIN, SA818_HL_PIN);
+    Serial.printf("PTT Pin: GPIO%d\n", SA818_PTT_PIN);
     
     // 清空串列緩衝區
     dra_serial.begin(SERIAL_SPEED,SERIAL_8N1,SA_RX,SA_TX);
@@ -57,87 +74,56 @@ void HAL::SA818_Init()
     Serial.println("Debug logging enabled");
     #endif
     
-    // 測試串列連接
-    Serial.println("Testing serial connection...");
-    Serial.println("Looking for SA818 response format: +DMOCONNECT:0<CR><LF>");
+    // 固定使用 9600 baud rate 進行串列通信
+    Serial.printf("SA818: Using fixed baud rate %d bps\n", SERIAL_SPEED);
     
-    // 測試多個波特率，尋找正確的 SA818 回應
-    int baud_rates[] = {4800, 9600, 19200, 38400, 115200};
-    int num_bauds = sizeof(baud_rates) / sizeof(baud_rates[0]);
+    // 測試基本連接
+    Serial.println("Testing SA818 connection with AT+DMOCONNECT...");
     
-    for(int b = 0; b < num_bauds; b++) {
-        Serial.printf("\n=== Testing baud rate: %d ===\n", baud_rates[b]);
-        
-        // 重新配置串列
-        dra_serial.end();
-        delay(100);
-        dra_serial.begin(baud_rates[b], SERIAL_8N1, SA_RX, SA_TX);
-        delay(1000);
-        
-        // 清空緩衝區
-        while(dra_serial.available()) {
-            dra_serial.read();
-        }
-        
-        // 測試 AT+DMOCONNECT 命令
-        Serial.print("Command: AT+DMOCONNECT -> ");
-        
-        dra_serial.print("AT+DMOCONNECT\r\n");
-        dra_serial.flush();
-        delay(2000);  // 更長等待時間
-        
-        // 檢查回應
-        char response_buffer[100];
-        int buffer_index = 0;
-        bool found_dmoconnect = false;
-        
-        Serial.print("Response: ");
-        while(dra_serial.available() && buffer_index < 99) {
-            char c = dra_serial.read();
-            response_buffer[buffer_index++] = c;
-            
-            if (c >= 32 && c <= 126) {
-                Serial.write(c);
-            } else if (c == '\r') {
-                Serial.print("<CR>");
-            } else if (c == '\n') {
-                Serial.print("<LF>");
-            } else {
-                Serial.printf("[0x%02X]", c);
-            }
-        }
-        response_buffer[buffer_index] = '\0';
-        
-        // 檢查是否包含正確的回應
-        if (strstr(response_buffer, "+DMOCONNECT:0") != NULL) {
-            Serial.print(" *** FOUND CORRECT SA818 RESPONSE! ***");
-            found_dmoconnect = true;
-        } else if (strstr(response_buffer, "+DMOCONNECT") != NULL) {
-            Serial.print(" *** FOUND PARTIAL SA818 RESPONSE! ***");
-        } else if (strstr(response_buffer, "DMOCONNECT") != NULL) {
-            Serial.print(" *** FOUND DMOCONNECT TEXT! ***");
-        }
-        
-        Serial.printf(" (%d bytes)\n", buffer_index);
-        
-        if (found_dmoconnect) {
-            Serial.printf("==> SUCCESS! Correct baud rate is %d bps\n", baud_rates[b]);
-            // 設定為找到的正確波特率
-            SERIAL_SPEED = baud_rates[b];
-            dra_serial.end();
-            delay(100);
-            dra_serial.begin(SERIAL_SPEED, SERIAL_8N1, SA_RX, SA_TX);
-            delay(1000);
-            break;  // 跳出測試，使用找到的波特率
-        }
+    // 清空緩衝區
+    while(dra_serial.available()) {
+        dra_serial.read();
     }
     
-    // 如果沒有找到正確回應，回到預設波特率
-    Serial.println("\n=== No correct SA818 response found, using default 9600 bps ===");
-    dra_serial.end();
-    delay(100);
-    dra_serial.begin(SERIAL_SPEED, SERIAL_8N1, SA_RX, SA_TX);
-    delay(1000);
+    // 測試 AT+DMOCONNECT 命令
+    Serial.print("Command: AT+DMOCONNECT -> ");
+    dra_serial.print("AT+DMOCONNECT\r\n");
+    dra_serial.flush();
+    delay(2000);
+    
+    // 檢查回應
+    char response_buffer[100];
+    int buffer_index = 0;
+    bool found_dmoconnect = false;
+    
+    Serial.print("Response: ");
+    while(dra_serial.available() && buffer_index < 99) {
+        char c = dra_serial.read();
+        response_buffer[buffer_index++] = c;
+        
+        if (c >= 32 && c <= 126) {
+            Serial.write(c);
+        } else if (c == '\r') {
+            Serial.print("<CR>");
+        } else if (c == '\n') {
+            Serial.print("<LF>");
+        } else {
+            Serial.printf("[0x%02X]", c);
+        }
+    }
+    response_buffer[buffer_index] = '\0';
+    
+    // 檢查是否包含正確的回應
+    if (strstr(response_buffer, "+DMOCONNECT:0") != NULL) {
+        Serial.println(" *** SA818 CONNECTION SUCCESS! ***");
+        found_dmoconnect = true;
+    } else if (strstr(response_buffer, "+DMOCONNECT") != NULL) {
+        Serial.println(" *** PARTIAL SA818 RESPONSE FOUND ***");
+    } else if (strstr(response_buffer, "DMOCONNECT") != NULL) {
+        Serial.println(" *** DMOCONNECT TEXT DETECTED ***");
+    } else {
+        Serial.printf(" *** NO RESPONSE (%d bytes) ***\n", buffer_index);
+    }
     
     Serial.println("SA818_Init: Done...");
 
@@ -148,22 +134,20 @@ void HAL::SA818_Init()
         Serial.println("\nError while configuring DRA818");
     }
 
-    // 嘗試握手多次
-    Serial.println("Attempting handshake with SA818...");
-    Serial.println("Note: Using baud rate determined from testing above...");
+    // 嘗試握手 (固定使用 9600 baud rate)
+    Serial.println("Attempting handshake with SA818 at 9600 bps...");
     
     int handshake_attempts = 3;
     bool handshake_success = false;
     
     for(int attempt = 1; attempt <= handshake_attempts; attempt++) {
-        Serial.printf("Handshake attempt %d/%d\n", attempt, handshake_attempts);
+        Serial.printf("Handshake attempt %d/%d at 9600 bps\n", attempt, handshake_attempts);
         
         // 清空緩衝區
         while(dra_serial.available()) {
             dra_serial.read();
         }
         
-        Serial.printf("Calling dra->handshake() for attempt %d\n", attempt);
         if (dra->handshake() == true) {
             Serial.println("*** SA818 HANDSHAKE SUCCESSFUL! ***");
             handshake_success = true;
@@ -175,99 +159,9 @@ void HAL::SA818_Init()
     }
     
     if (!handshake_success) {
-        Serial.println("Trying alternative baud rate (115200)...");
-        dra_serial.end();
-        delay(100);
-        dra_serial.begin(SERIAL_SPEED_ALT, SERIAL_8N1, SA_RX, SA_TX);
-        delay(1000);
-        
-        // 測試 115200 波特率下的基本通訊
-        Serial.println("Testing 115200 baud rate...");
-        dra_serial.print("AT\r\n");
-        dra_serial.flush();
-        delay(1000);
-        
-        Serial.print("115200 baud response: ");
-        int alt_bytes = 0;
-        while(dra_serial.available() && alt_bytes < 20) {
-            char c = dra_serial.read();
-            alt_bytes++;
-            if (c >= 32 && c <= 126) {
-                Serial.write(c);
-            } else {
-                Serial.printf("[0x%02X]", c);
-            }
-        }
-        Serial.printf(" (%d bytes)\n", alt_bytes);
-        
-        // 清空緩衝區
-        while(dra_serial.available()) {
-            dra_serial.read();
-        }
-        
-        // 重新創建 DRA818 對象
-        delete dra;
-        #if DRA818_CONFIG_UHF
-            dra = new DRA818((HardwareSerial*) &dra_serial, SA818_UHF);
-        #else
-            dra = new DRA818((HardwareSerial*) &dra_serial, SA818_VHF);
-        #endif
-        
-        #ifdef DRA818_DEBUG
-        dra->set_log(&Serial);
-        #endif
-        
-        // 再次嘗試握手
-        for(int attempt = 1; attempt <= 3; attempt++) {
-            Serial.printf("Alt baud handshake attempt %d/3\n", attempt);
-            if (dra->handshake() == true) {
-                Serial.println("Handshake successful with 115200 baud!");
-                handshake_success = true;
-                break;
-            }
-            delay(1000);
-        }
-    }
-    
-    if (!handshake_success) {
-        Serial.println("Trying alternative pins (17,18)...");
-        dra_serial.end();
-        delay(100);
-        dra_serial.begin(SERIAL_SPEED, SERIAL_8N1, SA_RX_ALT, SA_TX_ALT);
-        delay(1000);
-        
-        // 清空緩衝區
-        while(dra_serial.available()) {
-            dra_serial.read();
-        }
-        
-        // 重新創建 DRA818 對象
-        delete dra;
-        #if DRA818_CONFIG_UHF
-            dra = new DRA818((HardwareSerial*) &dra_serial, SA818_UHF);
-        #else
-            dra = new DRA818((HardwareSerial*) &dra_serial, SA818_VHF);
-        #endif
-        
-        #ifdef DRA818_DEBUG
-        dra->set_log(&Serial);
-        #endif
-        
-        // 再次嘗試握手
-        for(int attempt = 1; attempt <= 3; attempt++) {
-            Serial.printf("Alt pins handshake attempt %d/3\n", attempt);
-            if (dra->handshake() == true) {
-                Serial.println("Handshake successful with alternative pins!");
-                handshake_success = true;
-                break;
-            }
-            delay(1000);
-        }
-    }
-    
-    if (!handshake_success) {
-        Serial.println("All handshake attempts failed. Check connections and power supply.");
-        return;
+        Serial.println("SA818 handshake failed at 9600 bps.");
+        Serial.println("Check SA818 connections, power supply, and baud rate setting.");
+        Serial.println("Continuing with initialization (some features may not work)...");
     }
     
     #if DRA818_CONFIG_UHF
@@ -334,4 +228,86 @@ void HAL::SA818_GetInfo(SA818_Info_t* info)
         info->BW = 0;
         info->SQ = 0;
     }
+}
+
+// PTT (Push To Talk) 功能實現
+
+void HAL::PTT_Init() {
+    Serial.printf("PTT_Init: Configuring PTT pin GPIO %d\n", SA818_PTT_PIN);
+    
+    // 配置 PTT 引腳為輸入模式，啟用內部上拉
+    pinMode(SA818_PTT_PIN, INPUT_PULLUP);
+    
+    // 初始化狀態
+    ptt_state = false;
+    prev_ptt_state = false;
+    ptt_initialized = true;
+    
+    Serial.println("PTT_Init: PTT system initialized");
+}
+
+bool HAL::PTT_IsPressed() {
+    if (!ptt_initialized) {
+        return false;
+    }
+    
+    // PTT 按鍵通常是低電平觸發（按下時接地）
+    bool current_state = (digitalRead(SA818_PTT_PIN) == LOW);
+    
+    // 更新狀態
+    prev_ptt_state = ptt_state;
+    ptt_state = current_state;
+    
+    return ptt_state;
+}
+
+void HAL::PTT_SetTransmit(bool enable) {
+    if (!dra) {
+        Serial.println("PTT_SetTransmit: SA818 not initialized");
+        return;
+    }
+    
+    if (enable) {
+        Serial.println("PTT: Enabling transmission mode");
+        // 這裡可以添加 SA818 發送模式的設定
+        // 例如：dra->transmit(true);
+        // 注意：實際的 SA818 傳送控制可能需要根據庫的 API 調整
+    } else {
+        Serial.println("PTT: Disabling transmission mode (receive mode)");
+        // 這裡可以添加 SA818 接收模式的設定
+        // 例如：dra->transmit(false);
+    }
+}
+
+// SA818 控制引腳功能實現
+
+void HAL::SA818_SetPowerDown(bool powerDown) {
+    // PD 引腳：LOW = Power Down mode, HIGH = Normal operation
+    digitalWrite(SA818_PD_PIN, powerDown ? LOW : HIGH);
+    Serial.printf("SA818 PD pin set to %s (Power %s)\n", 
+                  powerDown ? "LOW" : "HIGH", 
+                  powerDown ? "Down" : "Normal");
+    
+    if (powerDown) {
+        delay(100);  // 給 SA818 時間進入省電模式
+    } else {
+        delay(1000); // 從省電模式恢復需要更長時間
+    }
+}
+
+void HAL::SA818_SetHighLowPower(bool highPower) {
+    // H/L 引腳：LOW = Low Power (0.5W), HIGH = High Power (1W)
+    digitalWrite(SA818_HL_PIN, highPower ? HIGH : LOW);
+    Serial.printf("SA818 H/L pin set to %s (%s Power - %s)\n", 
+                  highPower ? "HIGH" : "LOW", 
+                  highPower ? "High" : "Low",
+                  highPower ? "1W" : "0.5W");
+}
+
+bool HAL::SA818_GetPowerDown() {
+    return digitalRead(SA818_PD_PIN) == LOW;
+}
+
+bool HAL::SA818_GetHighLowPower() {
+    return digitalRead(SA818_HL_PIN) == HIGH;
 }

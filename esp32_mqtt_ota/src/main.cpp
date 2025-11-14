@@ -381,6 +381,14 @@ void setup() {
     Serial.println("Failed to initialize PageManager");
   }
   
+  // Test SA818 module after initialization
+  Serial.println("=== SA818 Module Test ===");
+  delay(2000);  // Give SA818 time to initialize
+  
+  // Call SA818 scan function to test communication
+  Serial.println("Testing SA818 communication...");
+  HAL::SA818_scan();
+  
   Serial.println("=== Setup Complete - HAL System Ready ===");
 }
 

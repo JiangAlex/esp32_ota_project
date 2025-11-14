@@ -19,11 +19,13 @@
 #define BTN_DOUBLE_CLICK_TIME   300  // 300ms雙擊間隔
 
 /* SA818 Configuration */
-#define SA818_RX_PIN            15   // arduino serial RX pin to the DRA818 TX pin 17
-#define SA818_TX_PIN            16   // arduino serial TX pin to the DRA818 RX pin 16
-#define SA818_PD_PIN            -1   // to the DRA818 PD pin 6 (disabled)
-#define SA818_BAUD              9600 // Default baud rate
-#define SA818_BAUD_ALT          115200 // Alternative baud rate
+#define SA818_RX_PIN            16   // ESP32 RX2 -> SA818 TX pin 17
+#define SA818_TX_PIN            17   // ESP32 TX2 -> SA818 RX pin 16
+#define SA818_PD_PIN            26   // SA818 PD pin 6 (Power Down control)
+#define SA818_HL_PIN            27   // SA818 H/L pin 1 (High/Low Power control)
+#define SA818_PTT_PIN           25   // Push To Talk button
+#define SA818_BAUD              9600 // Fixed baud rate
+#define SA818_BAUD_ALT          115200 // Alternative baud rate (unused)
 
 /* Power Configuration */
 #define POWER_BATTERY_PIN       36   // ADC pin for battery monitoring

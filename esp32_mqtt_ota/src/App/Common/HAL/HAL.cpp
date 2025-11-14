@@ -24,7 +24,8 @@ void HAL::HAL_Init(void)
     Button_Init();
     Clock_Init();
     // Power_Init();  // TODO: Implement Power_Init()
-    // SA818_Init();  // DRA818/SA818 disabled
+    SA818_Init();  // Enable SA818/DRA818 for testing
+    PTT_Init();    // Initialize PTT (Push To Talk)
     
     // Optional modules
     // Buzz_init();
