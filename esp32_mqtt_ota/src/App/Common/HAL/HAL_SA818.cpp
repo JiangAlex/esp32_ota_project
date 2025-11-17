@@ -2,6 +2,7 @@
 //#include <HardwareSerial.h>
 #include <Arduino.h>
 #include "DRA818.h" // uncomment the following line in DRA818.h (#define DRA818_DEBUG)
+#include "SA818_Channels.h" // SA818 頻道配置
 
 /* Used Pins */
 #define SA818_BAUD          9600    // 固定 SA818 波特率為 9600
@@ -31,6 +32,10 @@ float freq;                 // the next frequency to scan
 static bool ptt_initialized = false;
 static bool ptt_state = false;         // 當前 PTT 狀態
 static bool prev_ptt_state = false;    // 前一次 PTT 狀態
+
+// SA818 頻道管理變數
+static SA818_PowerMode current_power_mode = SA818_LOW_POWER;  // 預設低功率模式
+static int current_channel = 1;                               // 預設頻道 1
 
 void HAL::SA818_Init()
 {
@@ -310,4 +315,95 @@ bool HAL::SA818_GetPowerDown() {
 
 bool HAL::SA818_GetHighLowPower() {
     return digitalRead(SA818_HL_PIN) == HIGH;
+}
+
+// SA818 頻道管理功能
+
+bool HAL::SA818_SetChannel(int channel, SA818_PowerMode powerMode) {
+    if (!dra) {
+        Serial.println("SA818_SetChannel: SA818 not initialized");
+        return false;
+    }
+    
+    if (channel < SA818_MIN_CHANNEL || channel > SA818_MAX_CHANNEL) {
+        Serial.printf("SA818_SetChannel: Invalid channel %d (valid range: %d-%d)\n", 
+                      channel, SA818_MIN_CHANNEL, SA818_MAX_CHANNEL);
+        return false;
+    }
+    
+    float frequency = getSA818Frequency(powerMode, channel);
+    if (frequency == 0.0) {
+        Serial.printf("SA818_SetChannel: Failed to get frequency for channel %d\n", channel);
+        return false;
+    }
+    
+    // 設定硬體功率模式引腳
+    SA818_SetHighLowPower(powerMode == SA818_HIGH_POWER);
+    
+    // 配置 SA818 頻率
+    Serial.printf("SA818_SetChannel: Setting channel %d (%s) to %.4f MHz\n", 
+                  channel, getPowerModeName(powerMode), frequency);
+    
+    // 使用 DRA818 庫設定頻率（TX 和 RX 使用相同頻率）
+    int result = dra->group(DRA818_12K5, frequency, frequency, 0, 4, 0);
+    
+    if (result == 1) {
+        current_channel = channel;
+        current_power_mode = powerMode;
+        Serial.printf("SA818_SetChannel: Successfully set to channel %d (%s, %.4f MHz)\n", 
+                      channel, getPowerModeName(powerMode), frequency);
+        return true;
+    } else {
+        Serial.printf("SA818_SetChannel: Failed to set channel %d\n", channel);
+        return false;
+    }
+}
+
+int HAL::SA818_GetChannel() {
+    return current_channel;
+}
+
+SA818_PowerMode HAL::SA818_GetPowerMode() {
+    return current_power_mode;
+}
+
+float HAL::SA818_GetCurrentFrequency() {
+    return getSA818Frequency(current_power_mode, current_channel);
+}
+
+bool HAL::SA818_NextChannel() {
+    int next_channel = current_channel + 1;
+    if (next_channel > SA818_MAX_CHANNEL) {
+        next_channel = SA818_MIN_CHANNEL;
+    }
+    return SA818_SetChannel(next_channel, current_power_mode);
+}
+
+bool HAL::SA818_PreviousChannel() {
+    int prev_channel = current_channel - 1;
+    if (prev_channel < SA818_MIN_CHANNEL) {
+        prev_channel = SA818_MAX_CHANNEL;
+    }
+    return SA818_SetChannel(prev_channel, current_power_mode);
+}
+
+bool HAL::SA818_TogglePowerMode() {
+    SA818_PowerMode new_mode = (current_power_mode == SA818_LOW_POWER) ? 
+                               SA818_HIGH_POWER : SA818_LOW_POWER;
+    return SA818_SetChannel(current_channel, new_mode);
+}
+
+void HAL::SA818_GetChannelInfo(SA818_ChannelInfo_t* info) {
+    if (!info) return;
+    
+    info->channel = current_channel;
+    info->powerMode = current_power_mode;
+    info->frequency = getSA818Frequency(current_power_mode, current_channel);
+    
+    // 複製模式名稱和頻率範圍描述
+    strncpy(info->powerModeName, getPowerModeName(current_power_mode), sizeof(info->powerModeName) - 1);
+    info->powerModeName[sizeof(info->powerModeName) - 1] = '\0';
+    
+    strncpy(info->frequencyRange, getFrequencyRange(current_power_mode), sizeof(info->frequencyRange) - 1);
+    info->frequencyRange[sizeof(info->frequencyRange) - 1] = '\0';
 }

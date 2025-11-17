@@ -8,10 +8,13 @@
 
 MenuView::MenuView(MenuModel* m) : model(m), screen(nullptr), created(false), 
     statusBar(nullptr), iconContainer(nullptr), iconHighlight(nullptr), 
-    hintArea(nullptr), selectedIcon(0) {
+    hintArea(nullptr), selectedIcon(0), menuOptionsVisible(false) {
     for(int i = 0; i < 4; i++) {
         iconLabels[i] = nullptr;
+        menuLabels[i] = nullptr;
     }
+    timeLabel = nullptr;
+    dateLabel = nullptr;
 }
 
 MenuView::~MenuView() {
@@ -31,8 +34,47 @@ void MenuView::create() {
     // 初始化RTC
     initRTC();
     
-    // 創建圖標式MainMenu界面
-    createIconMenuLayout();
+    // 建立 MainMenu 基本三區域：狀態欄 (16px) / 主資訊區 (16px時間顯示) / 提示區 (日期)
+    statusBar = OLEDLayout::createStatusBar(screen);
+
+    // 主資訊區 (16px 顯示時間)
+    lv_obj_t* mainArea = OLEDLayout::createMainContentArea(screen);
+    // 清除原本的圖標容器內容，改為時間大字體顯示
+    timeLabel = lv_label_create(mainArea);
+    lv_label_set_text(timeLabel, "--:--");
+    lv_obj_set_style_text_font(timeLabel, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(timeLabel, lv_color_white(), 0);
+    lv_obj_center(timeLabel);
+
+    // 底部提示區顯示日期
+    hintArea = OLEDLayout::createHintBar(screen, "--- --/--");
+    // dateLabel 為 hintArea 的子項（第一個子項）
+    dateLabel = lv_obj_get_child(hintArea, 0);
+
+    // 同時建置圖標式選單但初始隱藏（在按 OK 時顯示）
+    iconContainer = OLEDLayout::createMainContentArea(screen);
+    // 將 iconContainer 視為選單列表容器 (放置垂直列表)
+    lv_obj_set_size(iconContainer, 128, 38);
+    lv_obj_set_pos(iconContainer, 0, 16);
+    lv_obj_set_scrollbar_mode(iconContainer, LV_SCROLLBAR_MODE_OFF);
+
+    // 建立四個簡潔的文字選項 (垂直排列) - 使用高亮顯示而非箭頭
+    const char* labels[4] = {"Trekking", "Radio", "System", "Status"};
+    for (int i = 0; i < 4; i++) {
+        menuLabels[i] = lv_label_create(iconContainer);
+        lv_obj_set_width(menuLabels[i], 110);
+        lv_label_set_text(menuLabels[i], labels[i]);
+        lv_obj_set_style_text_font(menuLabels[i], &lv_font_unscii_8, 0);
+        lv_obj_set_style_text_color(menuLabels[i], lv_color_white(), 0);
+        lv_obj_set_style_text_align(menuLabels[i], LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_set_style_bg_opa(menuLabels[i], LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(menuLabels[i], 0, 0);
+        lv_obj_set_pos(menuLabels[i], 8, 1 + i * 8); // 調整位置，不需要為箭頭留空間
+    }
+
+    // 初始狀態：顯示時間，隱藏選單
+    lv_obj_add_flag(iconContainer, LV_OBJ_FLAG_HIDDEN);
+    menuOptionsVisible = false;
     created = true;
     Serial.println("Menu View (Icon Mode) created");
 }
@@ -64,55 +106,44 @@ bool MenuView::isCreated() const {
 }
 
 void MenuView::updateSelection(int index) {
-    // 更新選中的圖標
+    // 更新選中的項目使用高亮顯示
     if (!created || index < 0 || index >= 4) return;
+    
+    // 先清除所有項目的高亮
+    for (int i = 0; i < 4; i++) {
+        if (menuLabels[i]) {
+            lv_obj_set_style_text_color(menuLabels[i], lv_color_white(), 0);
+            lv_obj_set_style_bg_opa(menuLabels[i], LV_OPA_TRANSP, 0);
+        }
+    }
+    
+    // 設置當前選中項目的高亮
     selectedIcon = index;
-    updateIconHighlight();
-    Serial.printf("MainMenu updateSelection: %d\n", index);
+    if (menuLabels[selectedIcon]) {
+        lv_obj_set_style_text_color(menuLabels[selectedIcon], lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(menuLabels[selectedIcon], LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(menuLabels[selectedIcon], lv_color_white(), 0);
+    }
+    
+    Serial.printf("MainMenu updateSelection: %d (highlight mode)\n", index);
 }
 
 void MenuView::createIconMenuLayout() {
-    // 1. 創建頂部狀態欄（16px）：電池 + 時間
-    statusBar = OLEDLayout::createStatusBar(screen);
-    
-    // 2. 創建中間主資訊區（38px）：圖標選單
-    iconContainer = OLEDLayout::createMainContentArea(screen);
-    
-    // 創建 2x2 圖標按鈕（適應38px高度）
-    // 第一行
-    createIconButton(0, 0, 0, "Trk", "Trekking");  // ⛰️ 替代符號
-    createIconButton(1, 0, 1, "Rad", "Radio");     // 🎙️ 替代符號
-    
-    // 第二行
-    createIconButton(2, 1, 0, "Sys", "System");    // ⚙️ 替代符號
-    createIconButton(3, 1, 1, "Sta", "Status");    // 📶 替代符號
-    
-    // 創建選中高亮框
-    iconHighlight = lv_obj_create(iconContainer);
-    lv_obj_set_size(iconHighlight, 30, 17);  // 適應新高度
-    lv_obj_set_style_bg_opa(iconHighlight, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_color(iconHighlight, lv_color_white(), 0);
-    lv_obj_set_style_border_width(iconHighlight, 1, 0);
-    lv_obj_set_scrollbar_mode(iconHighlight, LV_SCROLLBAR_MODE_OFF);
-    
-    // 3. 創建底部功能提示區（10px）：操作提示
-    hintArea = OLEDLayout::createHintBar(screen, "[UP/DN] Option [OK] Confirm");
-    
-    // 設置初始選中項目並更新高亮
-    selectedIcon = 0;
-    updateIconHighlight();
+    // Deprecated: icon-grid layout retained for compatibility but not used by default
 }
 
 void MenuView::updateTimeAndDate() {
-    // 新的圖標式界面使用統一的狀態欄來顯示時間
-    // 這個方法現在主要用於 main.cpp 中的定期更新調用
-    // 實際的時間顯示通過 updateStatusBar() 方法處理
+    // 更新 timeLabel 與 hint(date)
+    char timeStr[16], dateStr[16];
+    getRealTime(timeStr, dateStr);
+    if (timeLabel) lv_label_set_text(timeLabel, timeStr);
+    // 時間畫面顯示日期
+    if (dateLabel) lv_label_set_text(dateLabel, dateStr);
 }
 
 void MenuView::updateBatteryLevel() {
-    // 新的圖標式界面使用統一的狀態欄來顯示電池狀態
-    // 這個方法現在主要用於 main.cpp 中的定期更新調用
-    // 實際的電池顯示通過 updateStatusBar() 方法處理
+    // 狀態欄更新由 main.cpp 中的 updateStatusBar 統一處理
+    // 這裡不再直接更新，避免覆蓋 main.cpp 的時間+電池更新
 }
 
 void MenuView::initRTC() {
@@ -228,9 +259,43 @@ void MenuView::getIconPosition(int index, int* x, int* y) {
     *y = row * 17 + 1;  // 17px 高度，1px 偏移（適應38px總高度）
 }
 
+// 顯示圖標選單（進入導航選單模式）
+void MenuView::showMenuOptions() {
+    if (!created) return;
+    lv_obj_clear_flag(iconContainer, LV_OBJ_FLAG_HIDDEN);
+    if (timeLabel) lv_obj_add_flag(timeLabel, LV_OBJ_FLAG_HIDDEN);
+    // 更新提示為 [OK]
+    OLEDLayout::updateHintBar(hintArea, "[OK]");
+    menuOptionsVisible = true;
+    // 確保高亮顯示與選中項一致
+    updateSelection(selectedIcon);
+}
+
+// 隱藏圖標選單（回到時間顯示）
+void MenuView::hideMenuOptions() {
+    if (!created) return;
+    lv_obj_add_flag(iconContainer, LV_OBJ_FLAG_HIDDEN);
+    if (timeLabel) lv_obj_clear_flag(timeLabel, LV_OBJ_FLAG_HIDDEN);
+    // 恢復提示為日期（由 updateTimeAndDate 更新）
+    char timeStr[16], dateStr[16];
+    getRealTime(timeStr, dateStr);
+    OLEDLayout::updateHintBar(hintArea, dateStr);
+    menuOptionsVisible = false;
+}
+
+bool MenuView::isMenuOptionsVisible() const {
+    return menuOptionsVisible;
+}
+
 // 狀態欄更新方法
 void MenuView::updateStatusBar(const char* batteryText, const char* timeText) {
     if (statusBar) {
-        OLEDLayout::updateStatusBar(statusBar, batteryText, timeText);
+        if (menuOptionsVisible) {
+            // 選單模式：顯示時間+電池（跟其他頁面一樣）
+            OLEDLayout::updateStatusBar(statusBar, batteryText, timeText);
+        } else {
+            // 時間畫面：只顯示電池
+            OLEDLayout::updateStatusBar(statusBar, batteryText, "");
+        }
     }
 }

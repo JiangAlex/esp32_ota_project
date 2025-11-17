@@ -45,6 +45,10 @@ public:
     
     // 獲取當前選中的圖標
     MenuIcon getSelectedIcon() const { return static_cast<MenuIcon>(selectedIcon); }
+    // 顯示/隱藏圖標式選單 (MainMenu 切換)
+    void showMenuOptions();
+    void hideMenuOptions();
+    bool isMenuOptionsVisible() const;
     
     // 時間更新相關方法
     void updateTimeAndDate();
@@ -63,6 +67,8 @@ private:
     void getIconPosition(int index, int* x, int* y);
     lv_obj_t* timeLabel;
     lv_obj_t* dateLabel;
+    bool menuOptionsVisible;
+    lv_obj_t* menuLabels[4];
 };
 
 #endif // MENU_VIEW_H

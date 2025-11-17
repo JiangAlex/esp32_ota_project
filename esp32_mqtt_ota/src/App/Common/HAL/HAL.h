@@ -52,6 +52,8 @@ namespace HAL
     void Display_SetBrightness(uint8_t brightness);
     void Display_Clear();
     void Display_Test();
+    void Display_Sleep();           // Put OLED into sleep mode (power off)
+    void Display_Wakeup();          // Wake up OLED from sleep mode (power on)
 
     void Display_SetSendFinishCallback(Display_CallbackFunc_t func);
 
@@ -185,6 +187,16 @@ namespace HAL
     void SA818_SetHighLowPower(bool highPower); // Control H/L pin
     bool SA818_GetPowerDown();                  // Read PD pin state
     bool SA818_GetHighLowPower();               // Read H/L pin state
+    
+    /* SA818 Channel Management */
+    bool SA818_SetChannel(int channel, SA818_PowerMode powerMode);
+    int SA818_GetChannel();
+    SA818_PowerMode SA818_GetPowerMode();
+    float SA818_GetCurrentFrequency();
+    bool SA818_NextChannel();
+    bool SA818_PreviousChannel();
+    bool SA818_TogglePowerMode();
+    void SA818_GetChannelInfo(::SA818_ChannelInfo_t* info);
     
     /* PTT (Push To Talk) */
     void PTT_Init();

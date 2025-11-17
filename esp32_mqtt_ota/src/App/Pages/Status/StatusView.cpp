@@ -23,15 +23,11 @@ void StatusView::create() {
     // 創建統一的狀態欄 (16px 高度)
     statusBar = OLEDLayout::createStatusBar(screen);
     
-    // 創建內容區域（48px 高度，從狀態欄下方開始）
-    lv_obj_t* contentArea = lv_obj_create(screen);
-    lv_obj_set_size(contentArea, 128, 48);
-    lv_obj_set_pos(contentArea, 0, 16);
-    lv_obj_set_style_bg_color(contentArea, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(contentArea, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(contentArea, 0, 0);
-    lv_obj_set_style_pad_all(contentArea, 2, 0);
-    lv_obj_set_scrollbar_mode(contentArea, LV_SCROLLBAR_MODE_OFF);
+    // 創建內容區域（38px 高度，使用標準三區域佈局）
+    lv_obj_t* contentArea = OLEDLayout::createMainContentArea(screen);
+    
+    // 創建底部提示區
+    lv_obj_t* hintArea = OLEDLayout::createHintBar(screen, "[BACK]");
     
     // 創建狀態信息標籤
     statusLabel = lv_label_create(contentArea);

@@ -1,5 +1,7 @@
 #include "WalkieTalkieView.h"
 #include "../../Utils/OLEDLayout.h"
+#include "../../Common/HAL/HAL.h"
+#include "../../Common/HAL/SA818_Channels.h"
 #include <Arduino.h>
 
 WalkieTalkieView::WalkieTalkieView() : 
@@ -69,6 +71,9 @@ void WalkieTalkieView::create() {
     selectionIndex = 0;
     scrollOffset = 0;
 
+    // 從 HAL 載入當前 SA818 狀態
+    updateFromHAL();
+    
     // 初始化顯示內容與選取顯示
     updateDisplay();
     
@@ -201,12 +206,14 @@ void WalkieTalkieView::adjustVolume(int delta) {
 
 // 頻道切換
 void WalkieTalkieView::changeChannel(int delta) {
-    radioStatus.channel += delta;
-    if (radioStatus.channel < 1) radioStatus.channel = 16;
-    if (radioStatus.channel > 16) radioStatus.channel = 1;
+    if (delta > 0) {
+        HAL::SA818_NextChannel();
+    } else if (delta < 0) {
+        HAL::SA818_PreviousChannel();
+    }
     
-    // 更新對應頻率（簡化的頻率計算）
-    radioStatus.frequency = 462.5625f + (radioStatus.channel - 1) * 0.025f;
+    // 從 HAL 獲取最新的頻道資訊
+    updateFromHAL();
     
     Serial.printf("WalkieTalkie: Channel: %d, Freq: %.4f MHz\n", 
                   radioStatus.channel, radioStatus.frequency);
@@ -215,13 +222,11 @@ void WalkieTalkieView::changeChannel(int delta) {
 
 // 功率切換
 void WalkieTalkieView::togglePower() {
-    if (strcmp(radioStatus.powerLevel, "LOW") == 0) {
-        radioStatus.powerLevel = "MID";
-    } else if (strcmp(radioStatus.powerLevel, "MID") == 0) {
-        radioStatus.powerLevel = "HIGH";
-    } else {
-        radioStatus.powerLevel = "LOW";
-    }
+    HAL::SA818_TogglePowerMode();
+    
+    // 從 HAL 獲取最新的功率模式資訊
+    updateFromHAL();
+    
     Serial.printf("WalkieTalkie: Power level: %s\n", radioStatus.powerLevel);
     updateDisplay();
 }
@@ -297,18 +302,8 @@ void WalkieTalkieView::setOperationMode(OperationMode mode) {
 void WalkieTalkieView::updateHintText() {
     if (!hintBar) return;
     
-    const char* hintText;
-    switch (currentMode) {
-        case OperationMode::NAVIGATION:
-            hintText = "[OK]";
-            break;
-        case OperationMode::VALUE_EDIT:
-            hintText = "[BACK]";
-            break;
-        default:
-            hintText = "[OK]";
-            break;
-    }
+    // 統一提示區顯示 [BACK]
+    const char* hintText = "[BACK]";
     OLEDLayout::updateHintBar(hintBar, hintText);
 }
 
@@ -332,4 +327,24 @@ void WalkieTalkieView::adjustSelectedValue(int delta) {
             adjustSquelch(delta);
             break;
     }
+}
+
+// 從 HAL 更新無線電狀態
+void WalkieTalkieView::updateFromHAL() {
+    SA818_ChannelInfo_t channelInfo;
+    HAL::SA818_GetChannelInfo(&channelInfo);
+    
+    // 更新頻道和頻率
+    radioStatus.channel = channelInfo.channel;
+    radioStatus.frequency = channelInfo.frequency;
+    
+    // 更新功率級別顯示
+    if (channelInfo.powerMode == SA818_LOW_POWER) {
+        radioStatus.powerLevel = "L-CH";
+    } else {
+        radioStatus.powerLevel = "H-CH";
+    }
+    
+    Serial.printf("WalkieTalkie: Updated from HAL - CH:%d, Freq:%.4f MHz, Power:%s\n",
+                  radioStatus.channel, radioStatus.frequency, radioStatus.powerLevel);
 }

@@ -3,6 +3,12 @@
 
 #include <stdint.h>
 
+/* SA818 Power Mode Enum (Forward declaration from SA818_Channels.h) */
+enum SA818_PowerMode {
+    SA818_LOW_POWER = 0,   // L-CH: 409.75-409.9875 MHz
+    SA818_HIGH_POWER = 1   // H-CH: 430.1375-439.4375 MHz
+};
+
 /* SA818 Info Structure */
 typedef struct {
     uint8_t channel;
@@ -15,6 +21,15 @@ typedef struct {
     uint8_t BW;
     uint8_t SQ;
 } SA818_Info_t;
+
+/* SA818 Channel Info Structure */
+typedef struct {
+    int channel;                    // 頻道號碼 (1-20)
+    SA818_PowerMode powerMode;      // 功率模式 (L-CH/H-CH)
+    float frequency;                // 當前頻率 (MHz)
+    char powerModeName[8];          // 功率模式名稱 ("L-CH" 或 "H-CH")
+    char frequencyRange[32];        // 頻率範圍描述
+} SA818_ChannelInfo_t;
 
 /* Power Info Structure */
 typedef struct {

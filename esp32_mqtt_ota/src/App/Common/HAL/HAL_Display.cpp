@@ -39,7 +39,18 @@ void HAL::Display_Test()
     display_instance->setCursor(0, 0);
     display_instance->println("ESP32 OLED Test");
     display_instance->println("SSD1306 128x64");
-    display_instance->println("HAL Display Init");
+    
+    // 在主資訊區置中顯示 "SoftSnail" (16px字體大小)
+    display_instance->setTextSize(2); // 16px字體 (8x2=16)
+    
+    // 計算置中位置 (128px寬度的螢幕)
+    const char* text = "SoftSnail";
+    int textWidth = strlen(text) * 12; // 大約每個字元12px寬度 (size=2時)
+    int x = (128 - textWidth) / 2;
+    int y = 32; // 螢幕中央位置
+    
+    display_instance->setCursor(x, y);
+    display_instance->println(text);
 }
 
 void HAL::Display_Clear()
@@ -50,8 +61,28 @@ void HAL::Display_Clear()
 
 void HAL::Display_SetBrightness(uint8_t brightness)
 {
-    // OLED brightness control (if supported by hardware)
-    // Implementation depends on specific OLED controller
+    if (!display_instance) return;
+    
+    // OLED brightness control using SSD1306 commands
+    display_instance->setBrightness(brightness);
+}
+
+void HAL::Display_Sleep()
+{
+    if (!display_instance) return;
+    
+    // Put OLED into sleep mode (turns off display completely)
+    display_instance->sleep();
+    Serial.println("HAL: OLED put into sleep mode (power OFF)");
+}
+
+void HAL::Display_Wakeup()
+{
+    if (!display_instance) return;
+    
+    // Wake up OLED from sleep mode
+    display_instance->wakeup();
+    Serial.println("HAL: OLED wakeup from sleep mode (power ON)");
 }
 
 void HAL::Display_GetInfo(::Display_Info_t *info)

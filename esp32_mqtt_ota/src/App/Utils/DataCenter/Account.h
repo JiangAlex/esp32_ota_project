@@ -28,8 +28,6 @@
 #include "PingPongBuffer/PingPongBuffer.h"
 #include "lvgl.h"
 
-#define nullptr NULL
-
 class DataCenter;
 
 class Account

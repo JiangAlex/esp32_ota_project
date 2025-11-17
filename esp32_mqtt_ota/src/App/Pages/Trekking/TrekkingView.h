@@ -6,7 +6,8 @@
 enum class TrekkingState {
     START,      // 準備/啟動模式
     RUNNING,    // 執行/記錄模式
-    PAUSED      // 暫停模式
+    PAUSED,     // 暫停模式
+    END         // 結束模式
 };
 
 // Trekking 數據結構
@@ -32,13 +33,14 @@ private:
     lv_obj_t* screen;
     lv_obj_t* statusBar;
     lv_obj_t* contentArea;
-    lv_obj_t* dataLabels[4];  // 顯示數據的標籤陣列
-    lv_obj_t* hintBar;        // 底部提示區
+    lv_obj_t* dataLabels[4];    // 顯示標籤（只使用dataLabels[0]）
     
     bool created;
     TrekkingState currentState;
     TrekkingData trekkingData;
     unsigned long startTime;    // 開始時間戳
+    unsigned long downKeyPressTime; // DOWN鍵按下時間戳
+    bool downKeyPressed;        // DOWN鍵是否正在按下
 
 public:
     TrekkingView();
@@ -62,6 +64,13 @@ public:
     void handleOKButton();
     void handleUpButton();
     void handleDownButton();
+    void handleDownButtonPress();   // DOWN鍵按下
+    void handleDownButtonRelease(); // DOWN鍵釋放
+    void checkDownKeyLongPress();   // 檢查DOWN鍵長按
+    
+    // 滾動方法（參考Status頁面）
+    void scrollUp();            // UP 按鍵：向上滾動
+    void scrollDown();          // DOWN 按鍵：向下滾動
     
     // 狀態欄更新
     void updateStatusBar(const char* batteryText, const char* timeText);
@@ -70,5 +79,6 @@ private:
     // 內部方法
     void createStartLayout();
     void createRunningLayout();
+    void createEndLayout();
     void formatTime(unsigned long seconds, char* buffer, size_t bufferSize);
 };

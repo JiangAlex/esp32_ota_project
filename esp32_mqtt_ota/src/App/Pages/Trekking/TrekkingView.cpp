@@ -4,7 +4,8 @@
 
 TrekkingView::TrekkingView() : 
     screen(nullptr), statusBar(nullptr), contentArea(nullptr), 
-    created(false), currentState(TrekkingState::START), startTime(0) {
+    created(false), currentState(TrekkingState::START), 
+    startTime(0), downKeyPressTime(0), downKeyPressed(false) {
     // 初始化數據標籤陣列
     for (int i = 0; i < 4; i++) {
         dataLabels[i] = nullptr;
@@ -34,23 +35,36 @@ void TrekkingView::create() {
     // 1. 創建頂部狀態欄（16px）：電池 + 時間
     statusBar = OLEDLayout::createStatusBar(screen);
     
-    // 2. 創建中間主資訊區（38px）：Trekking數據
+    // 2. 創建內容區域（38px 高度，參考Status頁面）
     contentArea = OLEDLayout::createMainContentArea(screen);
     
-    // 創建數據顯示標籤（調整為適應38px高度，4行每行約9px）
-    for (int i = 0; i < 4; i++) {
-        dataLabels[i] = lv_label_create(contentArea);
-        lv_obj_set_width(dataLabels[i], 124);  // 稍微縮小寬度
-        lv_obj_set_style_text_font(dataLabels[i], &lv_font_unscii_8, 0);
-        lv_obj_set_style_text_color(dataLabels[i], lv_color_white(), 0);
-        lv_obj_set_style_text_align(dataLabels[i], LV_TEXT_ALIGN_LEFT, 0);
-        lv_obj_set_style_bg_opa(dataLabels[i], LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(dataLabels[i], 0, 0);
-        lv_obj_set_pos(dataLabels[i], 2, 1 + i * 9);  // 調整為9px間距以適應38px高度
-    }
+    // 3. 創建底部提示區
+    lv_obj_t* hintArea = OLEDLayout::createHintBar(screen, "[BACK]");
     
-    // 3. 創建底部功能提示區（10px）：操作提示
-    hintBar = OLEDLayout::createHintBar(screen, "[OK] START [BACK] Exit");
+    // 創建單一標籤用於顯示所有Trek信息（參考Status頁面）
+    dataLabels[0] = lv_label_create(contentArea);
+    
+    // 設置標籤寬度和自動換行（參考Status頁面）
+    lv_obj_set_width(dataLabels[0], 120); // 設置寬度 (128-8px邊距)
+    lv_label_set_long_mode(dataLabels[0], LV_LABEL_LONG_WRAP); // 啟用自動換行
+    lv_obj_set_style_text_color(dataLabels[0], lv_color_white(), 0);
+    
+    // 設置字體大小 - 使用 UNSCII 8px 點陣字體（參考Status頁面）
+    lv_obj_set_style_text_font(dataLabels[0], &lv_font_unscii_8, 0);
+    
+    // 改善文字顯示品質 - 針對緊湊顯示優化（參考Status頁面）
+    lv_obj_set_style_text_opa(dataLabels[0], LV_OPA_COVER, 0);
+    lv_obj_set_style_text_line_space(dataLabels[0], 0, 0); // 最小行間距
+    lv_obj_set_style_text_letter_space(dataLabels[0], 0, 0); // 點陣字體無需字母間距
+    
+    // 確保文字對齊和清晰度（參考Status頁面）
+    lv_obj_set_style_text_align(dataLabels[0], LV_TEXT_ALIGN_LEFT, 0);
+    
+    // 添加文字邊框以改善可讀性（參考Status頁面）
+    lv_obj_set_style_outline_width(dataLabels[0], 0, 0);
+    lv_obj_set_style_shadow_width(dataLabels[0], 0, 0);
+    
+    lv_obj_set_pos(dataLabels[0], 2, 2);
     
     // 設置初始狀態為 START
     setState(TrekkingState::START);
@@ -71,7 +85,6 @@ void TrekkingView::destroy() {
         screen = nullptr;
         statusBar = nullptr;
         contentArea = nullptr;
-        hintBar = nullptr;
         for (int i = 0; i < 4; i++) {
             dataLabels[i] = nullptr;
         }
@@ -126,6 +139,9 @@ void TrekkingView::formatTime(unsigned long seconds, char* buffer, size_t buffer
 void TrekkingView::updateDisplay() {
     if (!created) return;
     
+    // 檢查DOWN鍵長按 (在RUNNING或PAUSED狀態下)
+    checkDownKeyLongPress();
+    
     switch (currentState) {
         case TrekkingState::START:
             createStartLayout();
@@ -136,110 +152,190 @@ void TrekkingView::updateDisplay() {
         case TrekkingState::PAUSED:
             createRunningLayout();  // 暫停狀態顯示與運行相同，只是按鈕不同
             break;
+        case TrekkingState::END:
+            createEndLayout();
+            break;
     }
 }
 
-// START 狀態佈局
+// START 狀態佈局（參考Status頁面的單一標籤模式）
 void TrekkingView::createStartLayout() {
-    if (!created) return;
+    if (!created || !dataLabels[0]) return;
     
-    // 第一行：標題
-    lv_label_set_text(dataLabels[0], "--- START TREK ---");
+    // 格式化顯示文本（參考Status頁面）
+    char displayText[200];
+    snprintf(displayText, sizeof(displayText),
+        "T: %.1fC\n"           // 溫度
+        "H: %.0f m\n"          // 海拔  
+        "P: %.0f hPa\n"        // 氣壓
+        "STATUS: START"        // 狀態
+    ,
+    trekkingData.temperature,
+    trekkingData.altitude,
+    trekkingData.pressure
+    );
     
-    // 第二行：溫度
-    char tempStr[32];
-    snprintf(tempStr, sizeof(tempStr), "T: %.1f°C", trekkingData.temperature);
-    lv_label_set_text(dataLabels[1], tempStr);
-    
-    // 第三行：海拔和氣壓
-    char altPressStr[32];
-    snprintf(altPressStr, sizeof(altPressStr), "ALT: %.0fm P: %.0fhPa", 
-             trekkingData.altitude, trekkingData.pressure);
-    lv_label_set_text(dataLabels[2], altPressStr);
-    
-    // 第四行：狀態資訊
-    lv_label_set_text(dataLabels[3], "Ready to start...");
-    
-    // 更新底部提示區
-    OLEDLayout::updateHintBar(hintBar, "[OK] START [BACK] Exit");
+    lv_label_set_text(dataLabels[0], displayText);
+    Serial.printf("START Layout - T:%.1f°C, H:%.0fm, P:%.0fhPa\n", 
+                  trekkingData.temperature, trekkingData.altitude, trekkingData.pressure);
 }
 
-// RUNNING 狀態佈局
+// RUNNING/PAUSED 狀態佈局（參考Status頁面的單一標籤模式）
 void TrekkingView::createRunningLayout() {
-    if (!created) return;
+    if (!created || !dataLabels[0]) return;
     
-    // 第一行：時間和距離
-    char timeDistStr[32];
+    // 格式化時間
     char timeStr[16];
     formatTime(trekkingData.elapsedTime, timeStr, sizeof(timeStr));
-    snprintf(timeDistStr, sizeof(timeDistStr), "%s <-> %.1fKM", timeStr, trekkingData.distance);
-    lv_label_set_text(dataLabels[0], timeDistStr);
     
-    // 第二行：海拔、溫度、氣壓
-    char envStr[32];
-    snprintf(envStr, sizeof(envStr), "%.0fm %.1f°C %.0fhPa", 
-             trekkingData.altitude, trekkingData.temperature, trekkingData.pressure);
-    lv_label_set_text(dataLabels[1], envStr);
+    // 格式化顯示文本（參考Status頁面）
+    char displayText[200];
+    const char* statusText = (currentState == TrekkingState::RUNNING) ? "RUNNING" : "PAUSED";
     
-    // 第三行：爬升和步數
-    char ascentStepStr[32];
-    snprintf(ascentStepStr, sizeof(ascentStepStr), "ASC: %.0fm STEP: %d", 
-             trekkingData.ascent, trekkingData.stepCount);
-    lv_label_set_text(dataLabels[2], ascentStepStr);
+    snprintf(displayText, sizeof(displayText),
+        "TIME: %s\n"           // 經過時間
+        "DIST: %.1f km\n"      // 累計距離
+        "ASC: %.0f m\n"        // 累計爬升
+        "STEP: %d\n"           // 步數
+        "STATUS: %s"           // 狀態
+    ,
+    timeStr,
+    trekkingData.distance,
+    trekkingData.ascent,
+    trekkingData.stepCount,
+    statusText
+    );
     
-    // 第四行：狀態資訊 
-    if (currentState == TrekkingState::RUNNING) {
-        lv_label_set_text(dataLabels[3], "TREKKING IN PROGRESS");
-    } else {
-        lv_label_set_text(dataLabels[3], "TREKKING PAUSED");
-    }
-    
-    // 更新底部提示區
-    if (currentState == TrekkingState::RUNNING) {
-        OLEDLayout::updateHintBar(hintBar, "[OK] PAUSE [BACK] Stop");
-    } else {
-        OLEDLayout::updateHintBar(hintBar, "[OK] RESUME [BACK] Stop");
-    }
+    lv_label_set_text(dataLabels[0], displayText);
+    Serial.printf("TREK Layout - Time:%s, Dist:%.1fkm, ASC:%.0fm, Steps:%d, Status:%s\n", 
+                  timeStr, trekkingData.distance, trekkingData.ascent, trekkingData.stepCount, statusText);
 }
 
-// 按鈕處理方法
+// 按鈕處理方法 - OK按鍵用於狀態循環
 void TrekkingView::handleOKButton() {
+    // 狀態循環邏輯：START→RUNNING→PAUSED→RUNNING（循環）
     switch (currentState) {
         case TrekkingState::START:
             setState(TrekkingState::RUNNING);
-            Serial.println("TrekkingView: Started tracking");
+            Serial.println("TrekkingView: State changed from START to RUNNING");
             break;
         case TrekkingState::RUNNING:
             setState(TrekkingState::PAUSED);
-            Serial.println("TrekkingView: Paused tracking");
+            Serial.println("TrekkingView: State changed from RUNNING to PAUSED");
             break;
         case TrekkingState::PAUSED:
             setState(TrekkingState::RUNNING);
-            Serial.println("TrekkingView: Resumed tracking");
+            Serial.println("TrekkingView: State changed from PAUSED to RUNNING");
+            break;
+        case TrekkingState::END:
+            // END狀態下不處理OK按鍵
+            Serial.println("TrekkingView: In END state, OK button ignored");
             break;
     }
 }
 
 void TrekkingView::handleUpButton() {
-    // 在 START 狀態下，UP 按鈕可用於返回主選單
-    if (currentState == TrekkingState::START) {
-        Serial.println("TrekkingView: UP pressed - back to main menu");
-    }
-    // 在 RUNNING 狀態下可以用來調整顯示或其他功能
+    // UP 按鍵用於向上滾動（參考Status頁面）
+    scrollUp();
 }
 
 void TrekkingView::handleDownButton() {
-    // 在 RUNNING 狀態下，DOWN 按鈕可用於停止並重置
+    // DOWN 按鍵用於向下滾動（參考Status頁面）
+    scrollDown();
+}
+
+// DOWN鍵按下處理
+void TrekkingView::handleDownButtonPress() {
     if (currentState == TrekkingState::RUNNING || currentState == TrekkingState::PAUSED) {
-        setState(TrekkingState::START);
-        // 重置數據
-        trekkingData.elapsedTime = 0;
-        trekkingData.distance = 0;
-        trekkingData.ascent = 0;
-        trekkingData.stepCount = 0;
-        startTime = 0;
-        Serial.println("TrekkingView: Reset to START state");
+        downKeyPressed = true;
+        downKeyPressTime = millis();
+        Serial.println("TrekkingView: DOWN key pressed, starting long press detection");
     }
+}
+
+// DOWN鍵釋放處理
+void TrekkingView::handleDownButtonRelease() {
+    if (downKeyPressed) {
+        unsigned long pressDuration = millis() - downKeyPressTime;
+        downKeyPressed = false;
+        
+        if (pressDuration < 2000) {
+            Serial.printf("TrekkingView: DOWN key released after %lu ms (short press)\n", pressDuration);
+        } else {
+            Serial.printf("TrekkingView: DOWN key released after %lu ms (long press detected)\n", pressDuration);
+        }
+    }
+}
+
+// 檢查DOWN鍵長按 - 需要在主循環中調用
+void TrekkingView::checkDownKeyLongPress() {
+    if (downKeyPressed && (currentState == TrekkingState::RUNNING || currentState == TrekkingState::PAUSED)) {
+        unsigned long pressDuration = millis() - downKeyPressTime;
+        if (pressDuration >= 2000) { // 2秒長按
+            // 長按DOWN鍵2秒，進入END狀態
+            setState(TrekkingState::END);
+            downKeyPressed = false; // 重置按鍵狀態
+            Serial.println("TrekkingView: Long press detected (2s) - Entering END state");
+        }
+    }
+}
+
+// END 狀態佈局（參考Status頁面的單一標籤模式）
+void TrekkingView::createEndLayout() {
+    if (!created || !dataLabels[0]) return;
+    
+    // 格式化總時間
+    char timeStr[16];
+    formatTime(trekkingData.elapsedTime, timeStr, sizeof(timeStr));
+    
+    // 格式化顯示文本（參考Status頁面）
+    char displayText[200];
+    snprintf(displayText, sizeof(displayText),
+        "TOTAL: %s\n"          // 總時間
+        "DIST: %.1f km\n"      // 總距離
+        "ASC: %.0f m\n"        // 總爬升
+        "STEP: %d\n"           // 總步數
+        "STATUS: END"          // 狀態
+    ,
+    timeStr,
+    trekkingData.distance,
+    trekkingData.ascent,
+    trekkingData.stepCount
+    );
+    
+    lv_label_set_text(dataLabels[0], displayText);
+    Serial.printf("END Layout - Total:%s, Dist:%.1fkm, ASC:%.0fm, Steps:%d\n", 
+                  timeStr, trekkingData.distance, trekkingData.ascent, trekkingData.stepCount);
+}
+
+// 滾動方法（參考Status頁面）
+void TrekkingView::scrollUp() {
+    if (!created || !dataLabels[0]) return;
+    
+    // 獲取當前位置並向上移動
+    lv_coord_t currentY = lv_obj_get_y(dataLabels[0]);
+    lv_coord_t newY = currentY + 5; // 向上滾動5像素
+    
+    // 限制滾動範圍（不能滾動超過原始位置）
+    if (newY > 2) newY = 2;
+    
+    lv_obj_set_y(dataLabels[0], newY);
+    Serial.printf("Trek scroll up - Y position: %d\n", newY);
+}
+
+void TrekkingView::scrollDown() {
+    if (!created || !dataLabels[0]) return;
+    
+    // 獲取當前位置並向下移動
+    lv_coord_t currentY = lv_obj_get_y(dataLabels[0]);
+    lv_coord_t newY = currentY - 5; // 向下滾動5像素
+    
+    // 限制滾動範圍以顯示所有Trek信息
+    // 5行文字，需要足夠的滾動空間
+    if (newY < -20) newY = -20; // 允許滾動到 -20 以顯示所有內容
+    
+    lv_obj_set_y(dataLabels[0], newY);
+    Serial.printf("Trek scroll down - Y position: %d\n", newY);
 }
 
 void TrekkingView::updateStatusBar(const char* batteryText, const char* timeText) {

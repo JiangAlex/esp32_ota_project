@@ -113,7 +113,7 @@ void SystemView::createSystemMenuLayout() {
     lv_obj_set_scrollbar_mode(hintArea, LV_SCROLLBAR_MODE_OFF);
     
     hintLabel = lv_label_create(hintArea);
-    lv_label_set_text(hintLabel, "[OK] Enter [MENU] Exit");
+    lv_label_set_text(hintLabel, "[BACK]");
     lv_obj_set_style_text_font(hintLabel, &lv_font_unscii_8, 0);
     lv_obj_set_style_text_color(hintLabel, lv_color_white(), 0);
     lv_obj_set_style_text_align(hintLabel, LV_TEXT_ALIGN_CENTER, 0);

@@ -83,4 +83,6 @@ private:
     void updateSelectionDisplay();
     // 調整選中項目的數值
     void adjustSelectedValue(int delta);
+    // 從 HAL 更新無線電狀態
+    void updateFromHAL();
 };
