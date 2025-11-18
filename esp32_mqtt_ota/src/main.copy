@@ -36,17 +36,9 @@
 #include "App/Pages/WalkieTalkie/WalkieTalkieView.h"
 #include "App/Pages/System/SystemView.h"
 
-// OTA Support
-#include "App/Utils/OTA/ota_updater.h"
-// WiFi Manager
-#include "App/Utils/WiFiManager/wifi_manager.h"
-
 // Application state
 static PageManager* pageManager = nullptr;
 static bool scrollMode = false; // 滾動模式狀態
-static WiFiManager wifiManager; // WiFi Manager instance
-
-// OTA Configuration is now in ota_config.h
 
 // LVGL display buffer for 128x64 OLED
 static lv_disp_draw_buf_t draw_buf;
@@ -102,9 +94,27 @@ void handleButtonEvents() {
     // 根據當前頁面執行不同的OK按鍵功能
     switch (currentPage) {
       case PAGE_MAINMENU:
-        Serial.println("MainMenu: OK button - toggle/confirm selection via presenter");
-        if (pageManager && pageManager->getMenuPresenter()) {
-          pageManager->getMenuPresenter()->onOkPressed();
+        Serial.println("MainMenu: OK button - Confirm icon selection");
+        if (pageManager->getMenuView()) {
+          MenuIcon selectedIcon = pageManager->getMenuView()->getSelectedIcon();
+          switch (selectedIcon) {
+            case MenuIcon::TREKKING:
+              Serial.println("Selected: Trekking");
+              pageManager->switchToPage(PAGE_TREKKING);
+              break;
+            case MenuIcon::RADIO:
+              Serial.println("Selected: Radio (WalkieTalkie)");
+              pageManager->switchToPage(PAGE_WALKIETALKIE);
+              break;
+            case MenuIcon::SYSTEM:
+              Serial.println("Selected: System");
+              pageManager->switchToPage(PAGE_SYSTEM);
+              break;
+            case MenuIcon::STATUS:
+              Serial.println("Selected: Status");
+              pageManager->switchToPage(PAGE_STATUS);
+              break;
+          }
         }
         break;
         
@@ -156,11 +166,10 @@ void handleButtonEvents() {
   Button_Event_t upEvent = HAL::Button_GetEvent(HAL::BUTTON_UP_BACK);
   if (upEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
-      // MainMenu頁面：UP按鍵由 presenter 處理（可能進入選單模式或移動選擇）
-      Serial.println("UP button pressed - MainMenu presenter handleUpButton");
-      if (pageManager && pageManager->getMenuPresenter()) {
-        pageManager->getMenuPresenter()->handleUpButton();
-        pageManager->getMenuPresenter()->onUserActivity();
+      // MainMenu頁面：UP按鍵選擇上一個圖標
+      Serial.println("UP button pressed - MainMenu select previous icon");
+      if (pageManager->getMenuView()) {
+        pageManager->getMenuView()->selectPrevIcon();
       }
     } else if (scrollMode) {
       // 滾動模式：UP按鍵用於螢幕向上滾動
@@ -190,34 +199,34 @@ void handleButtonEvents() {
           break;
       }
     } else {
-      // 非滾動模式：UP按鍵只用於頁面內操作，不切換頁面
-      switch (currentPage) {
-        case PAGE_TREKKING:
-          Serial.println("UP button pressed - Trekking internal operation");
-          if (pageManager->getTrekkingView()) {
-            pageManager->getTrekkingView()->handleUpButton();
-          }
-          break;
-        case PAGE_WALKIETALKIE:
-          Serial.println("UP button pressed - WalkieTalkie internal operation");
-          if (pageManager->getWalkieTalkieView()) {
-            pageManager->getWalkieTalkieView()->handleUpButton();
-          }
-          break;
-        case PAGE_STATUS:
-          Serial.println("UP button pressed - Status internal operation");
-          if (pageManager->getStatusPresenter()) {
-            pageManager->getStatusPresenter()->scrollUp();
-          }
-          break;
-        case PAGE_SYSTEM:
-          Serial.println("UP button pressed - System internal operation");
-          if (pageManager->getSystemView()) {
-            pageManager->getSystemView()->selectPrevItem();
-          }
-          break;
-        default:
-          break;
+      // 非滾動模式：UP按鍵用於頁面切換 (除了 WalkieTalkie)
+      if (currentPage == PAGE_WALKIETALKIE) {
+        // WalkieTalkie 頁面：UP 按鍵總是用於頁面內操作
+        Serial.println("UP button pressed - WalkieTalkie internal operation");
+        if (pageManager->getWalkieTalkieView()) {
+          pageManager->getWalkieTalkieView()->handleUpButton();
+        }
+      } else {
+        PageID nextPage;
+        switch (currentPage) {
+          case PAGE_TREKKING:
+            nextPage = PAGE_WALKIETALKIE;
+            Serial.println("UP button pressed - Trekking -> WalkieTalkie");
+            break;
+          case PAGE_STATUS:
+            nextPage = PAGE_SYSTEM;
+            Serial.println("UP button pressed - Status -> System");
+            break;
+          case PAGE_SYSTEM:
+            nextPage = PAGE_MAINMENU;
+            Serial.println("UP button pressed - System -> MainMenu");
+            break;
+          default:
+            nextPage = PAGE_MAINMENU;
+            break;
+        }
+        pageManager->switchToPage(nextPage);
+        scrollMode = false; // 切換頁面時重置滾動模式
       }
     }
   }
@@ -226,11 +235,10 @@ void handleButtonEvents() {
   Button_Event_t downEvent = HAL::Button_GetEvent(HAL::BUTTON_DOWN_FN);
   if (downEvent == BUTTON_EVENT_PRESS) {
     if (currentPage == PAGE_MAINMENU) {
-      // MainMenu頁面：DOWN按鍵由 presenter 處理（可能進入選單模式或移動選擇）
-      Serial.println("DOWN button pressed - MainMenu presenter handleDownButton");
-      if (pageManager && pageManager->getMenuPresenter()) {
-        pageManager->getMenuPresenter()->handleDownButton();
-        pageManager->getMenuPresenter()->onUserActivity();
+      // MainMenu頁面：DOWN按鍵選擇下一個圖標
+      Serial.println("DOWN button pressed - MainMenu select next icon");
+      if (pageManager->getMenuView()) {
+        pageManager->getMenuView()->selectNextIcon();
       }
     } else if (scrollMode) {
       // 滾動模式：DOWN按鍵用於螢幕向下滾動
@@ -260,39 +268,45 @@ void handleButtonEvents() {
           break;
       }
     } else {
-      // 非滾動模式：DOWN按鍵只用於頁面內操作，不切換頁面
-      switch (currentPage) {
-        case PAGE_TREKKING:
-          Serial.println("DOWN button pressed - Trekking internal operation");
-          if (pageManager->getTrekkingView()) {
-            pageManager->getTrekkingView()->handleDownButton();
-          }
-          break;
-        case PAGE_WALKIETALKIE:
-          Serial.println("DOWN button pressed - WalkieTalkie internal operation");
-          if (pageManager->getWalkieTalkieView()) {
-            pageManager->getWalkieTalkieView()->handleDownButton();
-          }
-          break;
-        case PAGE_STATUS:
-          Serial.println("DOWN button pressed - Status internal operation");
-          if (pageManager->getStatusPresenter()) {
-            pageManager->getStatusPresenter()->scrollDown();
-          }
-          break;
-        case PAGE_SYSTEM:
-          Serial.println("DOWN button pressed - System internal operation");
-          if (pageManager->getSystemView()) {
-            pageManager->getSystemView()->selectNextItem();
-          }
-          break;
-        default:
-          break;
+      // 非滾動模式：DOWN按鍵用於頁面切換 (除了 WalkieTalkie)
+      if (currentPage == PAGE_WALKIETALKIE) {
+        // WalkieTalkie 頁面：DOWN 按鍵總是用於頁面內操作
+        Serial.println("DOWN button pressed - WalkieTalkie internal operation");
+        if (pageManager->getWalkieTalkieView()) {
+          pageManager->getWalkieTalkieView()->handleDownButton();
+        }
+      } else {
+        PageID prevPage;
+        switch (currentPage) {
+          case PAGE_TREKKING:
+            prevPage = PAGE_MAINMENU;
+            Serial.println("DOWN button pressed - Trekking -> MainMenu");
+            break;
+          case PAGE_STATUS:
+            prevPage = PAGE_WALKIETALKIE;
+            Serial.println("DOWN button pressed - Status -> WalkieTalkie");
+            break;
+          case PAGE_SYSTEM:
+            prevPage = PAGE_STATUS;
+            Serial.println("DOWN button pressed - System -> Status");
+            break;
+          default:
+            prevPage = PAGE_MAINMENU;
+            break;
+        }
+        pageManager->switchToPage(prevPage);
+        scrollMode = false; // 切換頁面時重置滾動模式
       }
     }
   } else if (downEvent == BUTTON_EVENT_HOLD) {
-    Serial.println("Down button hold - reserved function");
-    // 長按：保留功能（可以分配給其他用途）
+    if (currentPage == PAGE_WALKIETALKIE) {
+      Serial.println("WalkieTalkie: Down button hold - Return to MainMenu");
+      pageManager->switchToPage(PAGE_MAINMENU);
+      scrollMode = false;
+    } else {
+      Serial.println("Down button hold - reserved function");
+      // 長按：保留功能（可以分配給其他用途）
+    }
   } else if (downEvent == BUTTON_EVENT_DOUBLE) {
     Serial.println("Down button double click - function mode");
     // 雙擊：特殊功能模式 - 可以在這裡添加特定功能
@@ -308,52 +322,12 @@ void setup() {
   delay(100);
   
   Serial.println("=== ESP32 OLED Application with HAL System ===");
-  
-  #ifdef ENABLE_AUTO_OTA_CHECK
-  Serial.println("===== WiFi Manager Debug =====");
-  
-  // 初始化 WiFi Manager
-  wifiManager.begin();
-  
-  // 嘗試自動連接到保存的 WiFi
-  bool connected = wifiManager.autoConnectToWiFi();
-  Serial.printf("WiFi connection result: %s\n", connected ? "Success" : "Failed");
-  
-  if (connected) {
-      Serial.println("Connected to WiFi network!");
-      Serial.print("IP address: ");
-      Serial.println(wifiManager.getIP());
-      Serial.printf("Connected to SSID: %s\n", wifiManager.getSSID().c_str());
-  } else {
-      Serial.println("Failed to connect to saved WiFi.");
-      Serial.println("Starting WiFi configuration portal...");
-      wifiManager.startConfigPortal();
-      Serial.println("OTA functionality will be available after WiFi setup.");
-  }
-  Serial.println("===== WiFi Manager Debug End =====");
-  #endif
-
-  #ifdef OTA_SERVER_URL
-  String serverURL = OTA_SERVER_URL;
-  #else
-  String serverURL = "http://your-server.com/firmware";
-  #endif
-  
-  #ifdef OTA_VERSION_URL
-  String versionURL = OTA_VERSION_URL;
-  #else
-  String versionURL = "http://your-server.com/version";
-  #endif
-  
-  #ifdef OTA_CHECK_INTERVAL
-  unsigned long interval = OTA_CHECK_INTERVAL;
-  #else
-  unsigned long interval = 3600; // 1 hour default
-  #endif
 
   // Initialize HAL System (handles all hardware)
   HAL::HAL_Init();
   delay(1000);
+  
+  // DataProc initialization moved after LVGL init (requires lv_mem_alloc)
 
   // Initialize LVGL
   Serial.println("Initializing LVGL...");
@@ -407,35 +381,6 @@ void setup() {
     Serial.println("Failed to initialize PageManager");
   }
   
-  #ifdef ENABLE_AUTO_OTA_CHECK
-  // Initialize OTA if WiFi is connected
-  if (wifiManager.isConnected()) {
-    Serial.println("=== OTA Initialization ===");
-    
-    #ifdef CURRENT_VERSION
-    String currentVersion = CURRENT_VERSION;
-    #else
-    String currentVersion = "1.0.0";
-    #endif
-    
-    // Initialize OTA updater
-    otaUpdater.begin(currentVersion, serverURL, versionURL, interval);
-    otaUpdater.enableAutoCheck(true);
-    
-    // Perform initial update check
-    Serial.println("Performing initial OTA check...");
-    if (otaUpdater.checkForUpdates()) {
-      Serial.println("Update available! Will update on next check cycle.");
-    } else {
-      Serial.println("No updates available.");
-    }
-    
-    Serial.println("=== OTA Initialization Complete ===");
-  } else {
-    Serial.println("WiFi not connected - OTA disabled");
-  }
-  #endif
-
   // Test SA818 module after initialization
   Serial.println("=== SA818 Module Test ===");
   delay(2000);  // Give SA818 time to initialize
@@ -450,16 +395,6 @@ void setup() {
 void loop() {
   // Handle LVGL tasks
   lv_timer_handler();
-  
-  #ifdef ENABLE_AUTO_OTA_CHECK
-  // Handle WiFi Manager portal
-  wifiManager.loop();
-  
-  // Handle automatic OTA checks (only if WiFi is connected)
-  if (wifiManager.isConnected()) {
-    otaUpdater.handleAutoCheck();
-  }
-  #endif
   
   // Handle button events using HAL
   handleButtonEvents();
@@ -491,10 +426,6 @@ void loop() {
         case PAGE_MAINMENU:
           if (pageManager->getMenuPresenter()) {
             pageManager->getMenuPresenter()->updateDisplay();
-          }
-          // 更新 MainMenu 狀態欄 (時間+電池)
-          if (pageManager->getMenuView()) {
-            pageManager->getMenuView()->updateStatusBar(battStr, timeStr);
           }
           break;
           
@@ -572,11 +503,6 @@ void loop() {
       }
     }
   }
-  
-  // Handle OTA automatic checks
-  #ifdef ENABLE_AUTO_OTA_CHECK
-  otaUpdater.handleAutoCheck();
-  #endif
   
   // Small delay to prevent watchdog issues
   delay(5);

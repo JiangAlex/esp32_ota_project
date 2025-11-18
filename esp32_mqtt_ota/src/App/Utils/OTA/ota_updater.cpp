@@ -1,6 +1,6 @@
 #include "ota_updater.h"
 
-//OTAUpdater otaUpdater;
+OTAUpdater otaUpdater;
 
 OTAUpdater::OTAUpdater() {
     currentVersion = "1.0.0";
