@@ -294,11 +294,12 @@ void WiFiManager::resetSettings() {
 
 String WiFiManager::scanNetworks() {
     JsonDocument doc;
-    JsonArray networks = doc.createNestedArray("networks");
+    //JsonArray networks = doc.createNestedArray("networks");
+    JsonArray networks = doc["networks"].to<JsonArray>();
     
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
-        JsonObject network = networks.createNestedObject();
+        JsonObject network = networks.add<JsonObject>();
         network["ssid"] = WiFi.SSID(i);
         network["rssi"] = WiFi.RSSI(i);
         network["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);

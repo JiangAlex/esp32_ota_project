@@ -123,6 +123,7 @@ namespace HAL
     bool Button_IsPressed(uint8_t buttonIndex);
     bool Button_IsHold(uint8_t buttonIndex);
     void Button_GetInfo(uint8_t buttonIndex, ::Button_Info_t *info);
+    void Button_HandleEvents();
     
     /* Button Index */
     enum ButtonIndex {
